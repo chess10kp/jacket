@@ -1,0 +1,13 @@
+[project]
+name = "jac-shell"
+version = "0.1.0"
+description = "A Wayland desktop shell (bar/panels/notifications/launcher) written in Jac over GTK4 via PyGObject."
+
+[run]
+entrypoint = "examples/reference/main.jac"
+
+[test]
+directory = "tests"
+
+[dev]
+test_jobs = "0"   # serial: reactive tests share module scheduler state

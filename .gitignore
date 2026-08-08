@@ -1,0 +1,9 @@
+# Jac runtime cache
+.jac/
+
+# Python caches (from ::py:: blocks / test runs)
+__pycache__/
+*.pyc
+
+# pytest
+.pytest_cache/
