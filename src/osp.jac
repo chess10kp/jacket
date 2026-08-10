@@ -4,7 +4,8 @@
 # ordered `edge Child`. Build/mount/dispose/query are WALKERS. The ViewNode is
 # ALSO the reactive disposal scope (current_scope = the ViewNode being built),
 # so there is ONE tree, torn down post-order by the Dispose walker — no
-# parallel Owner tree. (Reactivity stays deliberately NON-OSP; see reactive.jac.)
+# parallel Owner tree. (Reactivity is graph-native via topology_reactive; see
+# reactive.jac.)
 #
 # Corrected from the sketch: real Jac edge syntax `+>:Child(order=i):+>`,
 # typed-edge reads `->:Child:->`, post-order `exit` abilities.
@@ -24,6 +25,7 @@ node ViewNode {
                                   # time (via set_classes, from builders) so walkers can
                                   # match without re-reading the widget. Kept in
                                   # sync with the widget by add_class/remove_class.
+    has reactive_anchor: any = None;   # Owns-subtree root for scoped reactive nodes
 
     # SCOPE PROTOCOL: a ViewNode IS the reactive disposal scope. effect()/on_*
     # register teardown here; the Dispose walker runs them post-order.
@@ -50,6 +52,9 @@ node ViewNode {
 
     # NODE ABILITY: structural lifecycle, fired when the Dispose walker visits.
     # `exit` = post-order (children already disposed). OSP's event model.
+    # The reactive anchor's Owns subtree is torn down by the cleanup the view
+    # registered when the anchor was created (reactive.jac) — graph-native
+    # disposal (dispose_owned walks Owns + clears Feeds), one collective teardown.
     can teardown with Dispose exit {
         for fn in reversed(self.cleanups) { fn(); }
         if self.widget is not None {

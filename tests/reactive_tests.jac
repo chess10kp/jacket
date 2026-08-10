@@ -5,6 +5,7 @@ import from src.reactive {
     signal, computed, effect, when, fmt, batch, with_scope, enter_scope, exit_scope,
     create_scope, flush, Reactive
 }
+import from src.topology_reactive { feed_targets }
 
 
 # --- basic: a signal drives an effect -------------------------------------
@@ -159,8 +160,8 @@ test "write loop raises after flush cap" {
 # --- no-op when no computation is tracking (peek is safe) ------------------
 test "reading without tracking does not subscribe" {
     a = signal(7);
-    # read inside NO effect -> no subscribers recorded
+    # read inside NO evaluation -> no Feeds edge recorded (PLAN §3)
     val = a();
     assert val == 7;
-    assert len(a.subscribers) == 0;
+    assert len(feed_targets(a.node)) == 0;
 }

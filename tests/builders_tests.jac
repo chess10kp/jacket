@@ -7,6 +7,7 @@ import from src.reactive { signal }
 import from src.mock_adapter { install_mock }
 import from src.builders { Box, Label, Button, For, Show, Entry, Slider }
 import from src.osp { Dispose }
+import from src.topology_reactive { feed_targets }
 
 
 def count_kind(ops: list, kind: str) -> int {
@@ -135,12 +136,12 @@ test "For unmount detaches the source subscription" {
     box = Box(children=[
         For(src, key=lambda (x) { x; }, row=lambda (x) { Label(text=str(x)); }),
     ]);
-    # the For effect subscribes to src:
-    assert len(src.subscribers) == 1;
+    # the For effect feeds from src (one Feeds edge src.node -> binding):
+    assert len(feed_targets(src.node)) == 1;
 
     box spawn Dispose();                 # post-order teardown of the whole tree
-    # the For effect's cleanup ran -> src has no subscribers left (no leak):
-    assert len(src.subscribers) == 0;
+    # the For effect's anchor was disposed -> src has no feeders left (no leak):
+    assert len(feed_targets(src.node)) == 0;
     # and every widget was removed from the adapter:
     assert count_kind(m.ops, "remove") >= 4;   # 3 labels + the box
 }

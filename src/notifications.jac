@@ -133,7 +133,7 @@ def own_name(on_notify, on_close):
             elif method == "GetCapabilities":
                 invocation.return_value(GLib.Variant("(as)", (["body", "actions", "body-markup"],)))
             elif method == "GetServerInformation":
-                invocation.return_value(GLib.Variant("(ssss)", ("jac-shell", "jaseci", "0.1", "1.2")))
+                invocation.return_value(GLib.Variant("(ssss)", ("jacket", "jaseci", "0.1", "1.2")))
             else:
                 invocation.return_value(None)
         try:
@@ -170,7 +170,7 @@ obj NotificationDaemon {
         if replaces == 0 { self._next_id += 1; }
         urgency = hint_urgency(hints);
         notif = make_notification(nid, app, summary, body, urgency, expire);
-        self.notifications.set(apply_notify(self.notifications.value, notif));
+        self.notifications.set(apply_notify(self.notifications.peek(), notif));
 
         timeout = resolve_timeout(expire, urgency);
         if timeout > 0 {
@@ -183,7 +183,7 @@ obj NotificationDaemon {
     }
 
     def close(id: int) {
-        self.notifications.set(dismiss(self.notifications.value, id));
+        self.notifications.set(dismiss(self.notifications.peek(), id));
     }
 }
 

@@ -144,7 +144,7 @@ obj Launcher {
 
     def show() { self.query.set(""); self.visible.set(True); }
     def hide() { self.visible.set(False); }
-    def toggle() { self.visible.set(not self.visible.value); }
+    def toggle() { self.visible.set(not self.visible.peek()); }
 
     def _scan() {
         entries: list = [];

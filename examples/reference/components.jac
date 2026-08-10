@@ -1,4 +1,4 @@
-# REFERENCE — cookbook widgets built on the jac-shell library (LIBRARY.md §1).
+# REFERENCE — cookbook widgets built on the jacket library (LIBRARY.md §1).
 #
 # components.jac — the real bar widgets (PLAN Phase 4/5 milestone).
 # ---------------------------------------------------------------------------
@@ -257,6 +257,15 @@ def LauncherButton() -> any {
 
 # Bar takes the monitor it should pin to (None = let the compositor choose, the
 # single-output / headless fallback). main.jac builds one per connected output.
+@component
+def MinimalBar(mon: any = None) -> any {
+    return Window(class="bar minimal", anchor="top", monitor=mon,
+        child=Box(orientation="H", class="bar-inner minimal", children=[
+            Clock(),
+        ]));
+}
+
+
 @component
 def Bar(mon: any = None) -> any {
     return Window(class="bar", anchor="top", monitor=mon,

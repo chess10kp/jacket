@@ -16,7 +16,7 @@ glob MAX_RESULTS: int = 30;
 
 # Launch the top-ranked result (Enter in the search box).
 def launch_first(l: any) {
-    res = filter_apps(l.apps.value, l.query.value);
+    res = filter_apps(l.apps.peek(), l.query.peek());
     if len(res) > 0 {
         l.launch(res[0]["exec"]);
         l.hide();

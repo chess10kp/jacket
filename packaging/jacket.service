@@ -1,13 +1,13 @@
-# systemd --user unit for jac-shell. Install/enable with packaging/install.sh,
+# systemd --user unit for jacket. Install/enable with packaging/install.sh,
 # or by hand:
-#   systemctl --user enable --now jac-shell.service
+#   systemctl --user enable --now jacket.service
 #
 # It binds to graphical-session.target, so it starts when your Wayland session
 # comes up and stops when it goes away. The compositor is expected to reach the
 # systemd user session (most do; if yours doesn't, start run.sh from your config
 # autostart instead).
 [Unit]
-Description=jac-shell (Wayland bar / panels / notifications / launcher)
+Description=jacket (Wayland bar / panels / notifications / launcher)
 Documentation=https://github.com/jaseci-labs/jaseci
 PartOf=graphical-session.target
 After=graphical-session.target
@@ -15,7 +15,7 @@ After=graphical-session.target
 [Service]
 Type=simple
 # %h = the user's home; adjust if the repo lives elsewhere.
-ExecStart=%h/repos/quickshell/shell/run.sh
+ExecStart=%h/repos/jacket/run.sh
 Restart=on-failure
 RestartSec=2
 # Bring the shell down cleanly on logout.

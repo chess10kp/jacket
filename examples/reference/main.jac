@@ -1,78 +1,110 @@
-# REFERENCE — full jac-shell bar (multi-monitor, launcher, notifications, tray).
+# REFERENCE — full jacket bar (multi-monitor, launcher, notifications, tray).
 # See LIBRARY.md §1: this is one consumer of the library, not the product.
 #
-# main.jac — entry point: install the GTK adapter, wire the reactive scheduler
-# onto the GLib main loop, build the roots, run.
-#
-# ROOTS come in two flavours:
-#   * popups (launcher, notification layer) — one each, present-once then hidden
-#     until their signal flips.
-#   * bars — ONE PER CONNECTED MONITOR. We enumerate Gdk monitors at activate and
-#     pin a Bar to each; on hotplug (items-changed) we present a bar for a new
-#     output and destroy the bar of a removed one. Headless / single-output falls
-#     back to a lone unpinned Bar.
+# main.jac — graph-native session drives output/surface policy; GTK bars are
+# projections mounted during convergence (PLAN E6 / H5).
 import from src.adapter {
     install, run_dynamic, apply_css,
-    list_monitors, monitor_key, destroy_window, connect_monitors_changed
+    list_monitors, monitor_key, connect_monitors_changed
 }
 import from src.glib { idle_add }
 import from src.reactive { set_flush_hook }
-import from src.builders { dispose_tree }
-import from examples.reference.components { Bar }
+import from src.desktop {
+    create_desktop, get_desktop, bootstrap_reference_outputs, converge
+}
+import from src.outputs { apply_output_attach, apply_output_detach, classify_role }
+import from src.graph_query { status_dict }
+import from src.policy { policy_state }
+import from src.notifications_policy { wire_notification_source }
+import from src.projection {
+    register_surface_builder, present_surface_views
+}
+import from src.ipc { ipc }
+import from examples.reference.components { Bar, MinimalBar }
 import from examples.reference.launcher_ui { LauncherWindow }
 import from examples.reference.notif_ui { NotificationLayer }
 import from examples.reference.style { CSS }
 
 
-# monitor-key -> the live Bar ViewNode currently pinned to that output.
-glob _bars: dict = {};
-
-
-# Reconcile the set of bars against the connected monitors: present a bar for
-# each new output, tear down the bar of each vanished one. Idempotent, so it
-# doubles as both the initial build and the hotplug handler.
-def sync_bars() {
+def _monitor_map() -> dict {
     want: dict = {};
-    mons = list_monitors();
-    for m in mons { want[monitor_key(m)] = m; }
+    for m in list_monitors() {
+        want[monitor_key(m)] = m;
+    }
+    return want;
+}
 
-    for k in list(_bars.keys()) {
-        if k not in want {
-            bar = _bars.pop(k);
-            destroy_window(bar.widget);        # unmap + drop the GTK window
-            dispose_tree(bar);                 # stop its effects/handlers
+
+def _mon_for(connector: str) -> any {
+    return _monitor_map().get(connector);
+}
+
+
+def _register_bar_builders() {
+    register_surface_builder("full-bar", lambda (c: str) { Bar(_mon_for(c)); });
+    register_surface_builder("minimal-bar", lambda (c: str) { MinimalBar(_mon_for(c)); });
+}
+
+
+def _sync_session_outputs() {
+    session = get_desktop();
+    if session is None { return; }
+    mons = _monitor_map();
+    st: dict = status_dict(session);
+    outputs: list = list(st.get("outputs", []));
+    have: dict = {};
+    for o in outputs {
+        have[o["connector"]] = o;
+    }
+    for k in list(have.keys()) {
+        if k not in mons {
+            apply_output_detach(session, k);
         }
     }
-    for (k, m) in want.items() {
-        if k not in _bars {
-            bar = Bar(m);
-            _bars[k] = bar;
-            bar.widget.present();
+    for (k, m) in mons.items() {
+        if k not in have {
+            apply_output_attach(session, k, classify_role(k));
         }
     }
-    # No layer-shell monitors at all (headless / plain compositor): a lone bar.
-    if len(_bars) == 0 {
-        bar = Bar();
-        _bars["_default"] = bar;
-        bar.widget.present();
+}
+
+
+def sync_bars() {
+    _sync_session_outputs();
+    _register_bar_builders();
+    session = get_desktop();
+    converge(session);
+    present_surface_views(session);
+    if len(list_monitors()) == 0 {
+        # Headless / pre-display fallback: one unpinned bar.
+        st = status_dict(session);
+        if len(st.get("outputs", [])) == 0 {
+            apply_output_attach(session, "_default", "unknown");
+            converge(session);
+            present_surface_views(session);
+        }
     }
 }
 
 
 def on_activate(app: any) {
-    # Popups: present once (maps the layer surface), then hide until toggled.
-    for p in [LauncherWindow(), NotificationLayer()] {
-        p.widget.present();
-        p.widget.set_visible(False);
-    }
+    create_desktop("reference");
+    wire_notification_source(policy_state().notif_source);
+    bootstrap_reference_outputs(get_desktop());
+    ipc().enable_graph(True);
+    ipc().set_app(app);
+    launcher = LauncherWindow();
+    launcher.widget.present();
+    launcher.widget.set_visible(False);
+    NotificationLayer();
     sync_bars();
-    connect_monitors_changed(sync_bars);       # live add/remove on hotplug
+    connect_monitors_changed(sync_bars);
 }
 
 
 with entry {
-    install();                                      # gtk init + install GTK adapter
-    apply_css(CSS);                                 # app-level stylesheet
-    set_flush_hook(lambda (f: any) { idle_add(f); });    # commit effects per idle tick
+    install();
+    apply_css(CSS);
+    set_flush_hook(lambda (f: any) { idle_add(f); });
     run_dynamic(on_activate, "org.jac.shell");
 }

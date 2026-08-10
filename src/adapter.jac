@@ -25,11 +25,12 @@ import from src.adapter_api { set_adapter }
 # bootstrap belongs here at module top.
 # ===========================================================================
 ::py::
+import sys
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gtk4LayerShell", "1.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gtk, GLib, Gdk, Gtk4LayerShell, GObject
+from gi.repository import Gtk, GLib, Gdk, Gtk4LayerShell, GObject, Gio
 
 def gtk_init():
     Gtk.init()
@@ -166,10 +167,50 @@ def idle_add(fn):      return GLib.idle_add(fn)
 def timeout_add(ms, fn): return GLib.timeout_add(ms, fn)
 def source_remove(sid):  return GLib.source_remove(sid)
 
-def run_app(app_id, on_activate):
-    app = Gtk.Application(application_id=app_id)
-    app.connect("activate", lambda a: on_activate(a))
-    return app.run()
+def _wrap_activate(on_activate):
+    """Apply any CSS queued before the display existed, then run the author hook."""
+    def wrapped(a):
+        flush_pending_css()
+        on_activate(a)
+    return wrapped
+
+def run_app(app_id, on_activate, non_unique=False):
+    flags = Gio.ApplicationFlags.NON_UNIQUE if non_unique else Gio.ApplicationFlags.DEFAULT_FLAGS
+    app = Gtk.Application(application_id=app_id, flags=flags)
+    app.connect("activate", lambda a: _wrap_activate(on_activate)(a))
+    return app.run(sys.argv)
+
+def run_ipc_app(app_id, on_activate, on_request):
+    """GApplication IPC transport: HANDLES_COMMAND_LINE forwards argv to the
+    primary instance; on_request(argv) returns a str printed to the client's
+    stdout via print_literal. PyGObject exposes is_remote as get_is_remote()."""
+    app = Gtk.Application(
+        application_id=app_id,
+        flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
+    )
+
+    def command_line(a, cmd):
+        rest = list(cmd.get_arguments())[1:]          # drop argv[0] (entry file)
+        is_remote = cmd.get_is_remote()
+        if not is_remote and not rest:
+            app.activate()                            # server mode: build the bar
+        if rest:
+            try:
+                resp = on_request(rest)
+            except Exception as e:
+                resp = "error: " + str(e)
+            if resp is not None:
+                s = str(resp)
+                cmd.print_literal(s if s.endswith("\n") else s + "\n")
+            if not is_remote:
+                # cold one-shot query (no server up yet): answer, then exit so
+                # we don't leave a bar running from a mere status request.
+                GLib.idle_add(lambda: (app.quit(), False)[1])
+        return 0
+
+    app.connect("activate", lambda a: _wrap_activate(on_activate)(a))
+    app.connect("command-line", command_line)
+    return app.run(sys.argv)
 
 # --- events: connect wraps arity so a 0-arg author handler just works. -----
 # R2 (event arity): a `lambda:` ignores the payload; a `lambda (w)` that wants
@@ -196,7 +237,9 @@ def set_css_classes(w, value):
     w.set_css_classes(classes)
 
 # --- CSS: one app-level provider, added to the default display -------------
-def load_css(text):
+_pending_css = None
+
+def _apply_css(text):
     prov = Gtk.CssProvider()
     try:
         prov.load_from_string(text)          # GTK >= 4.12
@@ -205,6 +248,20 @@ def load_css(text):
     Gtk.StyleContext.add_provider_for_display(
         Gdk.Display.get_default(), prov,
         Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+def load_css(text):
+    """Load app-level CSS. If Gdk has no default display yet, defer until activate."""
+    global _pending_css
+    if Gdk.Display.get_default() is None:
+        _pending_css = text
+        return
+    _apply_css(text)
+
+def flush_pending_css():
+    global _pending_css
+    if _pending_css is not None:
+        _apply_css(_pending_css)
+        _pending_css = None
 ::py::
 
 
@@ -362,7 +419,8 @@ def install() {
     set_adapter(GtkAdapter());
 }
 
-# Load an app-level stylesheet (call after install(), before building).
+# Load an app-level stylesheet (safe before or after Gtk.Application starts;
+# deferred automatically when Gdk.Display.get_default() is still None).
 def apply_css(text: str) { load_css(text); }
 
 def run(build_roots: any, app_id: str) -> any {
@@ -386,8 +444,16 @@ def run(build_roots: any, app_id: str) -> any {
 # run_dynamic — like run(), but hands the raw Gtk.Application `activate` to the
 # caller so it can manage roots itself (multi-monitor bars present/destroy on
 # hotplug). main.jac uses this; the reactive scheduler is still on GLib.idle.
-def run_dynamic(on_activate: any, app_id: str) -> any {
-    return run_app(app_id, on_activate);
+def run_dynamic(on_activate: any, app_id: str, non_unique: bool = False) -> any {
+    return run_app(app_id, on_activate, non_unique);
+}
+
+# run_with_ipc — AGS-style request/response over GApplication command-line
+# forwarding. Second launch with args runs on_request(argv) on the primary and
+# prints the return value to the client's stdout. See src/ipc.jac for the
+# registry handler; examples/swaybar/ is a full worked example.
+def run_with_ipc(on_activate: any, on_request: any, app_id: str) -> any {
+    return run_ipc_app(app_id, on_activate, on_request);
 }
 
 

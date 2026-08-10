@@ -3,8 +3,9 @@
 # query/restyle walkers over it and assert. No GTK.
 import from src.reactive { signal }
 import from src.mock_adapter { install_mock }
-import from src.builders { Box, Label, Button }
+import from src.builders { Box, Label, Button, dispose_tree }
 import from src.osp { ViewNode, query_by_class, flash_class, unflash_class, Restyle, collect }
+import from src.runtime_graph { reset_session_store, session_store }
 
 
 def count_kind(ops: list, kind: str) -> int {
@@ -115,4 +116,14 @@ test "Restyle with no predicate touches every node in the subtree" {
     # 1 toolbar + 2 buttons + 1 label + 1 group box + 1 nested button = 6
     assert len(w.touched) == 6;
     assert len(query_by_class(ui, "seen")) == 6;
+}
+
+
+test "dispose_tree clears owned binding nodes" {
+    reset_session_store();
+    install_mock();
+    vol = signal(0.5);
+    ui = Label(label=vol);
+    dispose_tree(ui);
+    assert len(session_store().binding_fns) == 0;
 }

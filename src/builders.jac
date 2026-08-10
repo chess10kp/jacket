@@ -253,7 +253,14 @@ def render_show(st: ShowState) {
         st.view = view;
         st.shown = want;
         st.parent +>:Child(order=0):+> view;
-        adapter().insert(st.parent.widget, view.widget, 0);
+        # Top-level surfaces (Window) must not be inserted into a Box parent —
+        # GTK asserts on cssnode->parent when a toplevel is reparented.
+        if view.tag == "Window" {
+            w = view.widget;
+            if w is not None and hasattr(w, "present") { w.present(); }
+        } else {
+            adapter().insert(st.parent.widget, view.widget, 0);
+        }
     } else {
         st.shown = want;
     }

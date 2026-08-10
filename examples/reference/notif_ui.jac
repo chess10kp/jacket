@@ -7,8 +7,9 @@
 # IN PLACE (same id, new text), each bubble's content reads its per-row Signal
 # via row_item() — the row_fn snapshot would go stale (see builders.jac For).
 # The window hides itself when the list is empty.
-import from src.builders { component, Box, Label, Button, Window, For, row_item }
+import from src.builders { component, Box, Label, Button, Window, For, Show, row_item }
 import from src.notifications { get_notifications }
+import from src.policy { popup_route_active }
 
 # Named accessors keep the .map calls lambda-free (and dodge the nested-lambda
 # codegen bug); the close closure stays a single-statement lambda.
@@ -34,12 +35,22 @@ def notif_row(n: dict) -> any {
     ]);
 }
 
-@component
-def NotificationLayer() -> any {
+def _notif_popup_window() -> any {
     d = get_notifications();
     rows = Box(orientation="V", class="notif-list", children=[
         For(d.notifications, key=_key, row=notif_row),
     ]);
-    return Window(class="notif-layer", layer="overlay", corner="top-right",
+    w = Window(class="notif-layer", layer="overlay", corner="top-right",
         hidden=d.notifications.map(_empty), child=rows);
+    if w.widget is not None and hasattr(w.widget, "present") {
+        w.widget.present();
+    }
+    return w;
+}
+
+@component
+def NotificationLayer() -> any {
+    return Box(class="notif-route-gate", children=[
+        Show(popup_route_active(), then=_notif_popup_window),
+    ]);
 }
