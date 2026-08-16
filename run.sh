@@ -1,12 +1,23 @@
 #!/usr/bin/env sh
-# Launch the shell. gtk4-layer-shell MUST be preloaded so it hooks libwayland
-# before GTK opens the display — otherwise the bar falls back to a plain,
-# unanchored window. (See https://github.com/wmww/gtk4-layer-shell/blob/main/linking.md)
+# Launch the shell.
+#
+# gtk4-layer-shell is loaded globally from src/adapter.jac (ctypes.CDLL before
+# `import gi`), so it is in place before GTK opens the Wayland display. No
+# LD_PRELOAD is required. If anchoring ever regresses, the old preload shim is
+# in git history — but please treat that as a bug in the early-load path, not
+# the supported fix.
 #
 # Usage:
-#   ./run.sh                              # full reference bar (default)
-#   ./run.sh examples/minimal/main.jac    # minimal bootstrap from LIBRARY.md
-LIB=$(ls /usr/lib*/libgtk4-layer-shell.so 2>/dev/null | head -n1)
-ENTRY="${1:-$(dirname "$0")/examples/reference/main.jac}"
-shift 2>/dev/null || true
-exec env LD_PRELOAD="$LIB" jac run "$ENTRY" "$@"
+#   ./run.sh                              # start the reference bar (server)
+#   ./run.sh status --json                # IPC to the running instance
+#   ./run.sh mode enter presentation
+#   ./run.sh examples/minimal/main.jac    # alternate entrypoint
+DEFAULT="$(dirname "$0")/examples/reference/main.jac"
+ENTRY="$DEFAULT"
+case "$1" in
+    *.jac|*.py)
+        ENTRY="$1"
+        shift
+        ;;
+esac
+exec jac run "$ENTRY" "$@"

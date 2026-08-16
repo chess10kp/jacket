@@ -14,6 +14,7 @@ import from src.projection { reset_projection, dispose_surface_views }
 import from src.topology_reactive { dispose_reactive_node }
 import from src.outputs { apply_output_attach, apply_output_detach }
 import from src.graph_query { status_dict, why_dict, affected_by_dict }
+import from src.projection { present_surface_views }
 
 
 glob _session: any = None;
@@ -90,10 +91,12 @@ def handle_graph_command(argv: list) -> dict {
         name = str(argv[2]);
         if action == "enter" {
             enter_mode(session, name);
+            present_surface_views(session);
             return {"ok": True, "data": status_dict(session)};
         }
         if action == "exit" {
             exit_mode(session, name);
+            present_surface_views(session);
             return {"ok": True, "data": status_dict(session)};
         }
         return {"ok": False, "error": "unknown mode action"};

@@ -40,7 +40,7 @@ else
 fi
 
 # --- 2. Verify layer-shell is preloadable -----------------------------------
-if ! ls /usr/lib*/libgtk4-layer-shell.so >/dev/null 2>&1; then
+if ! [ -e /usr/lib64/libgtk4-layer-shell.so ] && ! [ -e /usr/lib/libgtk4-layer-shell.so ]; then
   echo "!! libgtk4-layer-shell.so not found — install gtk4-layer-shell for anchored bars." >&2
 fi
 

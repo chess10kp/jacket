@@ -7,7 +7,7 @@
 # prop via .map — one effect, one patch per change (PLAN §3).
 import from time { strftime, localtime }
 import from src.reactive { signal }
-import from src.builders { component, Box, Label, Button, Icon, Window, For, row_item }
+import from src.builders { component, Box, Label, Button, Window, For, row_item }
 import from src.sources { ticker }
 import from src.wm { get_wm }
 import from src.battery { get_battery, battery_icon }
@@ -16,6 +16,9 @@ import from src.mpris { get_mpris, format_status }
 import from src.notifications { get_notifications }
 import from src.launcher { get_launcher }
 import from src.tray { get_tray }
+import from src.desktop { get_desktop }
+import from src.policy { active_modes, toggle_mode }
+import from src.projection { present_surface_views }
 
 
 # ===========================================================================
@@ -204,10 +207,14 @@ def NotificationsWidget() -> any {
 # TrayWidget — StatusNotifierItem system tray. A `For` over the watcher's live
 # item list, keyed on the canonical bus+path. Items update IN PLACE (an app fires
 # NewIcon/NewStatus on the same key), so each row reads its per-row Signal via
-# row_item() and binds icon/paintable/tooltip off it. Left-click calls Activate.
-# The named accessors keep the .map calls lambda-free (nested-lambda codegen bug).
-def _tray_icon(it: dict) -> str { return it["icon"]; }
-def _tray_texture(it: dict) -> any { return it["texture"]; }
+# row_item() and binds label/tooltip off it. GTK icon names/pixmaps are skipped
+# here — they often fail to render in layer-shell bars; a Nerd Font glyph or the
+# item's title abbreviation is more reliable. Left-click calls Activate.
+def _tray_label(it: dict) -> str {
+    t = str(it["title"] or it["id"] or "").strip();
+    if t != "" { return t[0:1]; }
+    return "󰇮";
+}
 def _tray_tip(it: dict) -> str { return it["tooltip"]; }
 def _tray_key(it: dict) -> any { return it["key"]; }
 def _tray_activate(key: str) { get_tray().activate(key); }
@@ -222,10 +229,8 @@ def _tray_fire(key: str, item_id: int) { get_tray().fire(key, item_id); }
 def tray_row(it: dict) -> any {
     cur = row_item();
     key = it["key"];
-    img = Icon(class="tray-icon",
-        icon=cur.map(_tray_icon),
-        paintable=cur.map(_tray_texture));
-    btn = Button(class="tray-item", child=img,
+    lbl = Label(class="tray-label", text=cur.map(_tray_label));
+    btn = Button(class="tray-item", child=lbl,
         tooltip=cur.map(_tray_tip),
         on_click=lambda { _tray_activate(key); });
     # Right-click: attach a GestureClick to the live GTK button; on press it
@@ -255,6 +260,40 @@ def LauncherButton() -> any {
 }
 
 
+def _toggle_presentation() {
+    s = get_desktop();
+    if s is None { return; }
+    toggle_mode(s, "presentation");
+    present_surface_views(s);
+}
+
+def _toggle_dnd() {
+    s = get_desktop();
+    if s is None { return; }
+    toggle_mode(s, "do-not-disturb");
+    present_surface_views(s);
+}
+
+def _pres_class(modes: list) -> str {
+    return "mode-toggle active" if "presentation" in modes else "mode-toggle";
+}
+
+def _dnd_class(modes: list) -> str {
+    return "mode-toggle active" if "do-not-disturb" in modes else "mode-toggle";
+}
+
+@component
+def ModeButtons() -> any {
+    modes = active_modes();
+    return Box(orientation="H", class="mode-toggles", children=[
+        Button(class=modes.map(_pres_class), label="󰽇", tooltip="Presentation mode",
+            on_click=lambda { _toggle_presentation(); }),
+        Button(class=modes.map(_dnd_class), label="󰂛", tooltip="Do not disturb",
+            on_click=lambda { _toggle_dnd(); }),
+    ]);
+}
+
+
 # Bar takes the monitor it should pin to (None = let the compositor choose, the
 # single-output / headless fallback). main.jac builds one per connected output.
 @component
@@ -276,6 +315,7 @@ def Bar(mon: any = None) -> any {
             Box(orientation="H", class="spacer", hexpand=True),
             Clock(),
             Box(orientation="H", class="spacer", hexpand=True),
+            ModeButtons(),
             TrayWidget(),
             NotificationsWidget(),
             VolumeWidget(),

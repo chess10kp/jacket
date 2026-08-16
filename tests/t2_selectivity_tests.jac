@@ -7,7 +7,7 @@ import from src.projection {
     register_surface_builder, surface_views, reset_projection
 }
 import from src.runtime_graph { session_outputs, output_surfaces }
-import from src.policy { enter_mode }
+import from src.policy { enter_mode, reconcile_topology }
 import from src.desktop { create_desktop, bootstrap_reference_outputs }
 
 
@@ -69,6 +69,27 @@ test "reconcile remounts view on surface kind change" {
                 assert len(views) == 1;
                 assert views[0].classes == ["bar", "minimal"];
             }
+        }
+    }
+}
+
+
+test "reconcile mounts view when surface predates builders" {
+    reset_session_store();
+    install_mock();
+    s = create_desktop("reference");
+    reset_projection();
+    bootstrap_reference_outputs(s);
+    register_surface_builder("full-bar", lambda (c: str) {
+        return Window(class="bar full", child=Label(text=c));
+    });
+    register_surface_builder("minimal-bar", lambda (c: str) {
+        return Window(class="bar minimal", child=Label(text=c));
+    });
+    reconcile_topology(s);
+    for out in session_outputs(s) {
+        for sn in output_surfaces(out) {
+            assert len(surface_views(sn)) == 1;
         }
     }
 }

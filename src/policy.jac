@@ -25,7 +25,7 @@ import from src.topology_reactive {
     create_source, create_binding, create_route, read, source_set,
     connect_feeds, disconnect_feeds, batch
 }
-import from src.projection { dispose_surface_views, mount_surface_view }
+import from src.projection { dispose_surface_views, mount_surface_view, surface_views }
 
 
 glob ROUTE_FULL_BAR: str = "surface:full-bar";
@@ -47,6 +47,7 @@ obj PolicyState {
     has history_binding: any = None;
     has popup_route: any = None;
     has history_route: any = None;
+    has modes_projection: any = None;
 }
 
 
@@ -63,6 +64,27 @@ def popup_route_active() -> any {
     st = policy_state();
     if st.popup_projection is None { st.popup_projection = signal(True); }
     return st.popup_projection;
+}
+
+# UI projection for active mode names (bar toggles, status mirrors).
+def active_modes() -> any {
+    st = policy_state();
+    if st.modes_projection is None { st.modes_projection = signal([]); }
+    return st.modes_projection;
+}
+
+def _sync_modes_projection(session: DesktopSession) {
+    st = policy_state();
+    if st.modes_projection is None { return; }
+    names = mode_names(session);
+    m = st.modes_projection;
+    if m.peek() == names { return; }
+    m.set(names);
+}
+
+def toggle_mode(session: DesktopSession, name: str) -> bool {
+    if name in mode_names(session) { return exit_mode(session, name); }
+    return enter_mode(session, name);
 }
 
 def reset_policy_state() { _policy = PolicyState(); }
@@ -127,6 +149,7 @@ def install_base_policies(session: DesktopSession) {
     # output attach still propagates. _sync_routes remains the sole owner of
     # source->RouteNode edges (idempotent connect on active routes).
     reconcile_topology(session);
+    _sync_modes_projection(session);
 }
 
 # Build a route gate: BasePolicy -Requests-> RoutePolicy -Activates-> RouteNode.
@@ -155,6 +178,7 @@ def enter_mode(session: DesktopSession, name: str) -> bool {
         if rp is not None { m +>:Suppresses:+> rp; }   # suppress the popup RoutePolicy
     }
     reconcile_topology(session);
+    _sync_modes_projection(session);
     return True;
 }
 
@@ -165,6 +189,7 @@ def exit_mode(session: DesktopSession, name: str) -> bool {
     }
     if not found { return True; }                    # idempotent on inactive mode
     reconcile_topology(session);
+    _sync_modes_projection(session);
     return True;
 }
 
@@ -219,7 +244,11 @@ def _sync_routes(session: DesktopSession) {
 def _reconcile_output(session: DesktopSession, out: OutputNode) {
     want = desired_surface_kind(session, out.connector, out.role);
     cur = current_surface(out);
-    if cur is not None and cur.kind == want { return; }   # unchanged: zero work
+    if cur is not None and cur.kind == want {
+        # Surface may exist without a view if reconcile ran before builders registered.
+        if len(surface_views(cur)) == 0 { mount_surface_view(cur); }
+        return;
+    }
     if cur is not None {
         dispose_surface_views(cur);
         trace_adapter("surface_dispose:" + str(out.connector));

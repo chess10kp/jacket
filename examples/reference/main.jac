@@ -3,14 +3,23 @@
 #
 # main.jac — graph-native session drives output/surface policy; GTK bars are
 # projections mounted during convergence (PLAN E6 / H5).
+#
+# IPC (AGS-style): start the bar with no args; forward commands to the running
+# instance (or answer cold and exit when no server is up):
+#     ./run.sh                              # start the bar
+#     ./run.sh status --json                # graph session snapshot
+#     ./run.sh mode enter presentation      # enter presentation mode
+#     ./run.sh mode exit do-not-disturb     # exit DND mode
+#     ./run.sh why binding:notification-popup --json
+#     ./run.sh quit
 import from src.adapter {
-    install, run_dynamic, apply_css,
+    install, run_with_ipc, apply_css,
     list_monitors, monitor_key, connect_monitors_changed
 }
 import from src.glib { idle_add }
 import from src.reactive { set_flush_hook }
 import from src.desktop {
-    create_desktop, get_desktop, bootstrap_reference_outputs, converge
+    create_desktop, get_desktop, converge
 }
 import from src.outputs { apply_output_attach, apply_output_detach, classify_role }
 import from src.graph_query { status_dict }
@@ -70,8 +79,8 @@ def _sync_session_outputs() {
 
 
 def sync_bars() {
-    _sync_session_outputs();
     _register_bar_builders();
+    _sync_session_outputs();
     session = get_desktop();
     converge(session);
     present_surface_views(session);
@@ -90,7 +99,6 @@ def sync_bars() {
 def on_activate(app: any) {
     create_desktop("reference");
     wire_notification_source(policy_state().notif_source);
-    bootstrap_reference_outputs(get_desktop());
     ipc().enable_graph(True);
     ipc().set_app(app);
     launcher = LauncherWindow();
@@ -106,5 +114,9 @@ with entry {
     install();
     apply_css(CSS);
     set_flush_hook(lambda (f: any) { idle_add(f); });
-    run_dynamic(on_activate, "org.jac.shell");
+    run_with_ipc(
+        on_activate,
+        lambda (argv: list) { return ipc().handle(argv); },
+        "org.jac.shell",
+    );
 }

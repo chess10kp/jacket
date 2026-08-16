@@ -1,6 +1,6 @@
-# jac-shell — Library API
+# jacket — Library API
 
-jac-shell is a **library for building Wayland desktop shells in Jac**. Authors
+jacket is a **library for building Wayland desktop shells in Jac**. Authors
 compose `@component` trees with fine-grained reactivity; the runtime reconciles
 once and patches leaves. The reference bar in `examples/reference/main.jac` is
 **one consumer** of this library — not the product.
@@ -194,6 +194,7 @@ The **only** supported path to pixels. All `gi` bootstrap lives here (`::py::`).
 | `apply_css(text)` | App-level stylesheet |
 | `run(build_roots, app_id)` | Simple: `build_roots()` → list of roots, present all |
 | `run_dynamic(on_activate, app_id)` | Full control in `on_activate` (multi-monitor, hotplug) |
+| `run_with_ipc(on_activate, on_request, app_id)` | IPC server + AGS-style client requests (see `src/ipc.jac`) |
 | `list_monitors()` | `Gdk.Monitor` list |
 | `monitor_key(m)` | Stable connector name (`"DP-1"`, …) |
 | `set_window_monitor(w, m)` | Pin layer-shell window to output |
@@ -221,6 +222,22 @@ may use `::py::` against `node.widget` directly. Keep escapes local and small
 | Symbol | Role |
 |---|---|
 | `ticker(interval_ms)` | `Signal` of epoch seconds, GLib timeout |
+
+---
+
+### 3.5b `src/ipc.jac` — AGS-style request handler
+
+Transport is `run_with_ipc` in `adapter.jac` (GApplication `HANDLES_COMMAND_LINE`).
+This module owns the handler registry.
+
+| Symbol | Role |
+|---|---|
+| `ipc()` | Lazy singleton `IPC` instance |
+| `IPC.register(name, getfn)` | Register a named text getter |
+| `IPC.set_bar(b)` / `set_app(a)` | Wire bar toggle + quit |
+| `IPC.handle(argv)` | `status`, `list`, `<name>`, `toggle`, `quit` |
+
+Worked example: `examples/swaybar/` (`./run.sh examples/swaybar/main.jac status`).
 
 ---
 
@@ -308,7 +325,7 @@ Reference shells live under `examples/`, not in the core `src/` import path.
 
 Quickshell expressiveness = **breadth of QML types and platform services**.
 
-jac-shell expressiveness = **depth of the reconciler** (fine-grained patch,
+jacket expressiveness = **depth of the reconciler** (fine-grained patch,
 OSP walkers) plus **whatever you build** on the builders/adapter/sources
 surface. Parity with Quickshell's full service catalog is a library expansion
 goal, not a property of the reference bar.

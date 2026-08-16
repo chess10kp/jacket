@@ -1,4 +1,4 @@
-# jac-shell
+# jacket
 
 A **library for building Wayland desktop shells in Jac** — reactive engine, OSP
 graph, declarative builders, GTK4 adapter, and optional service sources. See
@@ -20,7 +20,7 @@ minimal starting point, see `examples/minimal/main.jac` or LIBRARY.md §2.
 | 5 | Real widgets (notifications, MPRIS, tray, launcher) | ✅ done |
 | 6 | Multi-monitor bars + StatusNotifier tray + packaging | ✅ done |
 
-Phases 0–5 are complete and proven: all modules pass `jac check`, **93 tests
+Phases 0–5 are complete and proven: all modules pass `jac check`, **69 tests
 pass**, and the reactive→adapter→GTK path was verified against the live Wayland
 session — the leaf-patch (a `Gtk.Label` over 5 ticks), the per-monitor bar build
 (one bar per connected output, keyed by connector), and the full tray row
@@ -69,7 +69,9 @@ sources (DBus/Gio, Hypr IPC, sysfs) ──writes──▶ Signals
 | `src/notifications.jac` | `org.freedesktop.Notifications` daemon (we own the name) |
 | `src/tray.jac` | StatusNotifier tray: watcher server + host + item proxies |
 | `src/launcher.jac` | `.desktop` scan + fuzzy app launcher source |
+| `src/ipc.jac` | AGS-style IPC handler registry (`status` / `list` / named getters) |
 | `examples/reference/` | full bar shell: `main.jac`, `components.jac`, popups, `style.jac` |
+| `examples/swaybar/` | scroll/sway status-bar clone with IPC (`./run.sh examples/swaybar/main.jac`) |
 | `examples/minimal/main.jac` | minimal bootstrap (LIBRARY.md §2) |
 | `examples/reference/query_demo.jac` | demo: spawn walkers over your own ViewNode tree |
 | `tests/reactive_tests.jac` | scheduler correctness (diamond, cutoff, disposal, loop) |
@@ -78,7 +80,7 @@ sources (DBus/Gio, Hypr IPC, sysfs) ──writes──▶ Signals
 | `tests/adapter_tests.jac` | construct-only classifier (the one bit of pure adapter policy) |
 | `tests/components_tests.jac` / `tests/ui_helpers_tests.jac` | the pure per-row widget helpers |
 | `tests/osp_walker_tests.jac` | query/`Restyle` walkers over a held ViewNode tree (mock adapter) |
-| `packaging/` | `jac-shell.service` (systemd --user) + `install.sh` (gi bootstrap + unit) |
+| `packaging/` | `jacket.service` (systemd --user) + `install.sh` (gi bootstrap + unit) |
 
 ## Run
 
@@ -87,7 +89,7 @@ sources (DBus/Gio, Hypr IPC, sysfs) ──writes──▶ Signals
 ./run.sh examples/minimal/main.jac          # minimal bootstrap
 jac test tests/reactive_tests.jac tests/builders_tests.jac tests/sources_tests.jac \
          tests/adapter_tests.jac tests/components_tests.jac tests/ui_helpers_tests.jac \
-         tests/osp_walker_tests.jac   # 93 tests
+         tests/osp_walker_tests.jac tests/ipc_tests.jac   # 69 tests
 ```
 
 **Multi-monitor:** `examples/reference/main.jac` enumerates `Gdk.Display` monitors at activate and
@@ -123,7 +125,7 @@ shuffle "thrash" exists only under synthetic full-list reversal, which no real
 
 ```bash
 ./packaging/install.sh                      # drops system_site.pth + the user unit
-systemctl --user enable --now jac-shell.service
+systemctl --user enable --now jacket.service
 ```
 
 **Prerequisite (one-time):** Jac ships a bundled Python that can't see the system

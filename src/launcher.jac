@@ -79,14 +79,9 @@ def score(name: any, query: str) -> int {
 }
 
 # Pure: rank apps by score, drop non-matches. Ties break by name for stability.
-def filter_apps(apps: list, query: str) -> list {
-    scored: list = [];
-    for a in apps {
-        sc = score(a["name"], query);
-        if sc > 0 { scored.append((sc, a["name"], a)); }
-    }
-    scored.sort(key=lambda (t: tuple) { (-t[0], t[1]); });
-    return [t[2] for t in scored];
+# Hot path lives in Python — the Jac interpreter loop is too slow per keystroke.
+def filter_apps(apps: list, query: str, limit: int = 0) -> list {
+    return _filter_apps(apps, query, limit);
 }
 
 
@@ -94,7 +89,50 @@ def filter_apps(apps: list, query: str) -> list {
 # The scan + launch (OS side, not unit-tested here).
 # ---------------------------------------------------------------------------
 ::py::
+import heapq
 import os
+
+
+def _score_lname(n: str, q: str) -> int:
+    if not q:
+        return 1
+    s = 0
+    qi = 0
+    prev = -2
+    for i, ch in enumerate(n):
+        if qi < len(q) and ch == q[qi]:
+            s += 3 if i == prev + 1 else 1
+            if i == 0 and qi == 0:
+                s += 5
+            prev = i
+            qi += 1
+    if qi < len(q):
+        return 0
+    return s
+
+
+def _filter_apps(apps, query, limit=0):
+    if not apps:
+        return []
+    q = (query or "").lower()
+    if not q:
+        ranked = sorted(apps, key=lambda a: a.get("lname", a["name"].lower()))
+        return ranked[:limit] if limit else ranked
+    scored = []
+    for a in apps:
+        lname = a.get("lname")
+        if lname is None:
+            lname = a["name"].lower()
+        sc = _score_lname(lname, q)
+        if sc > 0:
+            scored.append((sc, lname, a))
+    if limit and len(scored) > limit:
+        top = heapq.nlargest(limit, scored, key=lambda t: t[0])
+        top.sort(key=lambda t: (-t[0], t[1]))
+        return [t[2] for t in top]
+    scored.sort(key=lambda t: (-t[0], t[1]))
+    out = [t[2] for t in scored]
+    return out[:limit] if limit else out
 
 
 def _desktop_dirs():
@@ -144,7 +182,10 @@ obj Launcher {
 
     def show() { self.query.set(""); self.visible.set(True); }
     def hide() { self.visible.set(False); }
-    def toggle() { self.visible.set(not self.visible.peek()); }
+    def toggle() {
+        if self.visible.peek() { self.hide(); }
+        else { self.show(); }
+    }
 
     def _scan() {
         entries: list = [];
@@ -152,6 +193,7 @@ obj Launcher {
             e = parse_desktop(text);
             if e is not None {
                 e["key"] = fname;              # unique For key (see scan_files)
+                e["lname"] = e["name"].lower(); # filter hot path (avoid per-keystroke lower)
                 entries.append(e);
             }
         }

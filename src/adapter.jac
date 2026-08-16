@@ -26,6 +26,15 @@ import from src.adapter_api { set_adapter }
 # ===========================================================================
 ::py::
 import sys
+# gtk4-layer-shell must be mapped into the process BEFORE GTK touches Wayland,
+# so its ELF constructor installs the wl_registry hooks in time. Loading it
+# globally here (ahead of `import gi`) replaces the LD_PRELOAD workaround —
+# see https://github.com/wmww/gtk4-layer-shell/blob/main/linking.md
+import ctypes, ctypes.util
+_l4ls = ctypes.CDLL(
+    ctypes.util.find_library("gtk4-layer-shell") or "libgtk4-layer-shell.so",
+    mode=ctypes.RTLD_GLOBAL,
+)
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gtk4LayerShell", "1.0")
@@ -42,7 +51,14 @@ def make_box(orient="H"):
 def make_label():   return Gtk.Label()
 def make_button():  return Gtk.Button()
 def make_image():   return Gtk.Image()
-def make_window():  return Gtk.Window()
+_gtk_app = None
+def set_gtk_application(app):
+    global _gtk_app
+    _gtk_app = app
+def make_window():
+    if _gtk_app is not None:
+        return Gtk.Window(application=_gtk_app)
+    return Gtk.Window()
 def make_entry():   return Gtk.SearchEntry()
 def make_scale(orient, lo, hi, step):
     o = Gtk.Orientation.HORIZONTAL if orient == "H" else Gtk.Orientation.VERTICAL
@@ -142,11 +158,18 @@ def set_layer(w, layer):
         pass
 
 def set_keyboard(w, on):
-    # ON_DEMAND lets the popup grab the keyboard while focused (launcher typing),
-    # then hand it back. NONE = never (bars).
+    # EXCLUSIVE grabs the keyboard as soon as the surface is visible (launcher
+    # popups). ON_DEMAND only routes keys after a widget inside has focus, which
+    # is easy to miss on show. NONE = never (bars).
     try:
-        mode = Gtk4LayerShell.KeyboardMode.ON_DEMAND if on else Gtk4LayerShell.KeyboardMode.NONE
+        mode = Gtk4LayerShell.KeyboardMode.EXCLUSIVE if on else Gtk4LayerShell.KeyboardMode.NONE
         Gtk4LayerShell.set_keyboard_mode(w, mode)
+    except Exception:
+        pass
+
+def grab_focus(w):
+    try:
+        w.grab_focus()
     except Exception:
         pass
 
@@ -170,6 +193,7 @@ def source_remove(sid):  return GLib.source_remove(sid)
 def _wrap_activate(on_activate):
     """Apply any CSS queued before the display existed, then run the author hook."""
     def wrapped(a):
+        set_gtk_application(a)
         flush_pending_css()
         on_activate(a)
     return wrapped

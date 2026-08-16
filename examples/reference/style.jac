@@ -6,7 +6,9 @@ glob CSS: str = """
 .bar {
     background: rgba(20, 22, 30, 0.92);
     color: #e6e6e6;
-    font-family: 'JetBrainsMono Nerd Font', monospace;
+    font-family: 'Iosevka Nerd Font', 'Iosevka Nerd Font Mono',
+        'Symbols Nerd Font Mono', 'JetBrainsMono Nerd Font',
+        'FiraCode Nerd Font', 'Hack Nerd Font', monospace;
     font-size: 14px;
 }
 .bar-inner {
@@ -20,6 +22,17 @@ glob CSS: str = """
 .notifications { color: #ffd27f; }
 .launcher-toggle { background: transparent; border: none; box-shadow: none; padding: 2px 12px; color: #b8c0d0; font-size: 16px; }
 .launcher-toggle:hover { background: rgba(255, 255, 255, 0.08); }
+.mode-toggles { padding: 0 2px; }
+.mode-toggle {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 2px 8px;
+    color: #8a90a0;
+    font-size: 15px;
+}
+.mode-toggle:hover { background: rgba(255, 255, 255, 0.08); color: #c8ccd4; }
+.mode-toggle.active { color: #a8c8ff; background: rgba(120, 160, 255, 0.22); }
 
 /* Launcher popup */
 .launcher-box {
@@ -78,7 +91,12 @@ glob CSS: str = """
     min-width: 0;
 }
 .tray-item:hover { background: rgba(255, 255, 255, 0.08); }
-.tray-icon { -gtk-icon-size: 18px; }
+.tray-label {
+    min-width: 18px;
+    text-align: center;
+    font-size: 13px;
+    color: #c8ccd4;
+}
 .workspaces button.ws {
     background: transparent;
     border: none;
