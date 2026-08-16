@@ -10,3 +10,6 @@ __pycache__/
 
 # pi-subagent session artifacts
 .pi-subagents/
+
+# build artifacts
+dist/

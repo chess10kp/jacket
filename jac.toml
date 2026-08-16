@@ -2,6 +2,7 @@
 name = "jacket"
 version = "0.1.0"
 description = "A Wayland desktop shell (bar/panels/notifications/launcher) written in Jac over GTK4 via PyGObject."
+entry = "examples/reference/main.jac"
 
 [run]
 entrypoint = "examples/reference/main.jac"

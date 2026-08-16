@@ -35,7 +35,25 @@ _l4ls = ctypes.CDLL(
     ctypes.util.find_library("gtk4-layer-shell") or "libgtk4-layer-shell.so",
     mode=ctypes.RTLD_GLOBAL,
 )
-import gi
+# The sealed binary embeds an isolated Python; distros ship PyGObject (gi) in
+# system site-packages. Bridge to them for the matching minor version (the
+# C extension ABI must match the embedded interpreter). This replaces the
+# packaging/install.sh system_site.pth patch, which cannot travel inside the
+# executable.
+import glob as _glob, site as _site
+for _sp in sorted(
+    _glob.glob("/usr/lib*/python%d.%d/*-packages" % sys.version_info[:2])
+):
+    if _sp not in sys.path:
+        _site.addsitedir(_sp)
+try:
+    import gi
+except ImportError:
+    raise ImportError(
+        "jacket needs system PyGObject: install python3-gobject (or gi for "
+        "python %d.%d) — the embedded runtime found no usable 'gi' module"
+        % sys.version_info[:2]
+    )
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gtk4LayerShell", "1.0")
 gi.require_version("Gdk", "4.0")
