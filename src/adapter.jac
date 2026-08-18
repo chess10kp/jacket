@@ -304,6 +304,140 @@ def flush_pending_css():
     if _pending_css is not None:
         _apply_css(_pending_css)
         _pending_css = None
+
+# --- anchored popovers (Quickshell PopupWindow analogue) -------------------
+# Gtk.Popover anchors to a bar widget; show/hide is driven by hover or click.
+_POS = {
+    "top": Gtk.PositionType.TOP,
+    "bottom": Gtk.PositionType.BOTTOM,
+    "left": Gtk.PositionType.LEFT,
+    "right": Gtk.PositionType.RIGHT,
+}
+
+def _make_popover(anchor_widget, content_widget, position="bottom"):
+    if anchor_widget is None or content_widget is None:
+        return None
+    if not hasattr(anchor_widget, "add_controller"):
+        return None
+    pop = Gtk.Popover.new()
+    pop.set_child(content_widget)
+    pop.set_parent(anchor_widget)
+    pop.set_position(_POS.get(str(position), Gtk.PositionType.BOTTOM))
+    pop.set_has_arrow(True)
+    pop.set_autohide(True)
+    return pop
+
+def py_attach_hover_popover(anchor_widget, content_widget, position="bottom",
+                         show_delay_ms=100, hide_delay_ms=200):
+    """Hover-triggered popover (Quickshell PopupWindow + hover timer pattern).
+    Returns a cleanup callable, or None when headless / non-GTK handles."""
+    pop = _make_popover(anchor_widget, content_widget, position)
+    if pop is None:
+        return None
+
+    show_sid = [None]
+    hide_sid = [None]
+    on_trigger = [False]
+    on_content = [False]
+
+    def _cancel():
+        for sid in (show_sid[0], hide_sid[0]):
+            if sid:
+                try:
+                    GLib.source_remove(sid)
+                except Exception:
+                    pass
+        show_sid[0] = hide_sid[0] = None
+
+    def _open():
+        show_sid[0] = None
+        if on_trigger[0] or on_content[0]:
+            try:
+                pop.popup()
+            except Exception:
+                pass
+        return False
+
+    def _close():
+        hide_sid[0] = None
+        if not on_trigger[0] and not on_content[0]:
+            try:
+                pop.popdown()
+            except Exception:
+                pass
+        return False
+
+    def _schedule_open():
+        _cancel()
+        show_sid[0] = GLib.timeout_add(max(0, int(show_delay_ms)), _open)
+
+    def _schedule_close():
+        _cancel()
+        hide_sid[0] = GLib.timeout_add(max(0, int(hide_delay_ms)), _close)
+
+    def _trigger_enter(*a):
+        on_trigger[0] = True
+        _schedule_open()
+
+    def _trigger_leave(*a):
+        on_trigger[0] = False
+        _schedule_close()
+
+    def _content_enter(*a):
+        on_content[0] = True
+        _cancel()
+
+    def _content_leave(*a):
+        on_content[0] = False
+        _schedule_close()
+
+    ctrl = Gtk.EventControllerMotion.new()
+    ctrl.connect("enter", _trigger_enter)
+    ctrl.connect("leave", _trigger_leave)
+    anchor_widget.add_controller(ctrl)
+
+    cctrl = Gtk.EventControllerMotion.new()
+    cctrl.connect("enter", _content_enter)
+    cctrl.connect("leave", _content_leave)
+    content_widget.add_controller(cctrl)
+
+    def cleanup():
+        _cancel()
+        try:
+            pop.popdown()
+            pop.unparent()
+        except Exception:
+            pass
+
+    return cleanup
+
+def py_attach_click_popover(anchor_widget, content_widget, position="bottom"):
+    """Click-toggle popover. Returns cleanup callable or None."""
+    pop = _make_popover(anchor_widget, content_widget, position)
+    if pop is None:
+        return None
+
+    def _toggle(*a):
+        try:
+            if pop.get_visible():
+                pop.popdown()
+            else:
+                pop.popup()
+        except Exception:
+            pass
+
+    gesture = Gtk.GestureClick.new()
+    gesture.connect("pressed", _toggle)
+    anchor_widget.add_controller(gesture)
+
+    def cleanup():
+        try:
+            pop.popdown()
+            pop.unparent()
+        except Exception:
+            pass
+
+    return cleanup
 ::py::
 
 
@@ -464,6 +598,20 @@ def install() {
 # Load an app-level stylesheet (safe before or after Gtk.Application starts;
 # deferred automatically when Gdk.Display.get_default() is still None).
 def apply_css(text: str) { load_css(text); }
+
+def attach_hover_popover(
+    anchor: any,
+    content: any,
+    position: str = "bottom",
+    show_delay_ms: int = 100,
+    hide_delay_ms: int = 200,
+) -> any {
+    return py_attach_hover_popover(anchor, content, position, show_delay_ms, hide_delay_ms);
+}
+
+def attach_click_popover(anchor: any, content: any, position: str = "bottom") -> any {
+    return py_attach_click_popover(anchor, content, position);
+}
 
 def run(build_roots: any, app_id: str) -> any {
     # build_roots() returns a LIST of top-level ViewNodes (bar, launcher,

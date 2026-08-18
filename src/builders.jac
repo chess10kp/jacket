@@ -1,18 +1,16 @@
-# builders.jac — LIBRARY: declarative authoring surface → live OSP graph.
+# builders.jac — LIBRARY: OSP authoring → live ViewNode graph → mount.
 # ---------------------------------------------------------------------------
-# Closes the loop: author code -> builders -> ViewNode graph (typed Child
-# edges) -> effects/For. Consistent with osp.jac (ViewNode/Child/Dispose),
-# reactive.jac (Signal/Effect + current_scope = a ViewNode here), adapter_api.
+# Authors init widget nodes and chain typed edges (Child, Anchored). Structure
+# is the OSP graph; mount_tree (end of @component) projects to GTK.
 #
-# Authoring is DECLARATIVE (Box/Label/For/Show + lambdas), not OSP — authors
-# never write node/edge/walker to describe UI (PLAN §8a). The result they HOLD
-# is a real walkable ViewNode graph; osp.jac walkers traverse it.
+# Legacy sugar: child= / children= on init still works (edges + immediate mount
+# for static nodes). Prefer edge chains in composition roots.
 #
-# The prop layer is intentionally NOT OSP — it's the O(1) leaf-binding path;
-# walking it would defeat fine-grained.
+# Props/reactivity stay on node init — not walked on update (fine-grained).
 import from src.reactive { effect, enter_scope, exit_scope, create_scope, Reactive, signal }
 import from src.adapter_api { adapter }
-import from src.osp { ViewNode, Child, Dispose }
+import from src.osp { ViewNode, Child, Dispose, mount_child, set_child_order, sync_child_orders }
+import from src.mount { mount_tree }
 
 
 # ===========================================================================
@@ -23,9 +21,6 @@ def element(tag: str, props: dict) -> ViewNode {
     n = ViewNode(tag=tag);
     n.widget = adapter().construct(tag, construct_props(tag, props));
 
-    # n scopes ITS OWN prop-effects + event handlers: set current_scope = n
-    # while we wire it, so effect()/on_* register teardown on this node. The
-    # Dispose walker later runs those cleanups post-order. (No Owner tree.)
     prev = enter_scope(n);
     try {
         apply_props(n, props);
@@ -105,7 +100,7 @@ def attach_children(n: ViewNode, props: dict) {
         if isinstance(c, ShowMarker) { expand_show(n, c); continue; }
         # c is an already-built ViewNode (builders run eagerly, depth-first)
         n +>:Child(order=i):+> c;
-        adapter().insert(n.widget, c.widget, i);
+        mount_child(n, c, i);
         i += 1;
     }
 }
@@ -174,6 +169,7 @@ def reconcile_list(st: ForState) {
             move_row(st, view, i);
         }
     }
+    sync_child_orders(st.parent, [st.rows[k] for k in new_keys]);
 
     # 3. CONTENT — surviving rows get their CURRENT item pushed through their
     #    per-row Signal. Equality cutoff skips identical items; each row's own
@@ -199,7 +195,7 @@ def create_row(st: ForState, item: any, k: any, pos: int) {
     st.rows[k] = view;
     st.item_sig[k] = sig;
     st.parent +>:Child(order=pos):+> view;
-    adapter().insert(st.parent.widget, view.widget, pos);
+    mount_child(st.parent, view, pos);
 }
 
 def remove_row(st: ForState, k: any) {
@@ -211,7 +207,8 @@ def remove_row(st: ForState, k: any) {
 }
 
 def move_row(st: ForState, view: ViewNode, pos: int) {
-    adapter().move(st.parent.widget, view.widget, pos);   # the real GTK relayout
+    set_child_order(st.parent, view, pos);
+    adapter().move(st.parent.widget, view.widget, pos);
 }
 
 
@@ -253,14 +250,7 @@ def render_show(st: ShowState) {
         st.view = view;
         st.shown = want;
         st.parent +>:Child(order=0):+> view;
-        # Top-level surfaces (Window) must not be inserted into a Box parent —
-        # GTK asserts on cssnode->parent when a toplevel is reparented.
-        if view.tag == "Window" {
-            w = view.widget;
-            if w is not None and hasattr(w, "present") { w.present(); }
-        } else {
-            adapter().insert(st.parent.widget, view.widget, 0);
-        }
+        mount_child(st.parent, view, 0);
     } else {
         st.shown = want;
     }
@@ -286,7 +276,10 @@ def component(fn: any) -> any {
         top: any = None;
         try { top = fn(*a, **kw); }
         finally { exit_scope(prev); }
-        if top is not None { top.on_cleanup(s.dispose); }
+        if top is not None {
+            mount_tree(top);
+            top.on_cleanup(s.dispose);
+        }
         return top;
     }
     return wrapped;

@@ -40,9 +40,9 @@ def format_status(player: dict) -> str {
     title = str(player.get("title", ""));
     artist = str(player.get("artist", ""));
     if title == "" { return ""; }
-    glyph = "󰐊 " if not player.get("playing", False) else "󰏤 ";
-    if artist != "" { return glyph + artist + " — " + title; }
-    return glyph + title;
+    mark = "|| " if player.get("playing", False) else "> ";
+    if artist != "" { return mark + artist + " — " + title; }
+    return mark + title;
 }
 
 

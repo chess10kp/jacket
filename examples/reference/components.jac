@@ -7,7 +7,8 @@
 # prop via .map — one effect, one patch per change (PLAN §3).
 import from time { strftime, localtime }
 import from src.reactive { signal }
-import from src.builders { component, Box, Label, Button, Window, For, row_item }
+import from src.osp { Child, Anchored }
+import from src.builders { component, Box, Label, Button, Window, For, row_item, Slider }
 import from src.sources { ticker }
 import from src.wm { get_wm }
 import from src.battery { get_battery, battery_icon }
@@ -163,15 +164,29 @@ def BatteryWidget() -> any {
 }
 
 
-# VolumeWidget — click to mute/unmute; scroll-free, label reflects live state.
+# Volume — click to mute/unmute; hover panel wired on the bar root in Bar().
+def _vol_label(d: dict) -> str {
+    return ("MUTE  " if d["muted"] else "VOL  ") + str(d["percent"]) + "%";
+}
+
 @component
-def VolumeWidget() -> any {
+def VolumePanel() -> any {
+    a = get_audio();
+    return Box(orientation="V", class="volume-overlay", children=[
+        Label(class="volume-overlay-title",
+            text=a.volume.map(lambda (d: dict) { "Volume " + str(d["percent"]) + "%"; })),
+        Slider(class="volume-slider", min=0, max=100, step=1,
+            value=a.volume.map(lambda (d: dict) { d["percent"]; }),
+            on_value_change=lambda (w: any) { get_audio().set_volume(int(w.get_value())); }),
+    ]);
+}
+
+@component
+def VolumeButton() -> any {
     a = get_audio();
     return Button(
         class="volume",
-        label=a.volume.map(lambda (d: dict) {
-            ("󰝟  " if d["muted"] else "󰕾  ") + str(d["percent"]) + "%";
-        }),
+        label=a.volume.map(_vol_label),
         on_click=lambda { a.toggle_mute(); },
     );
 }
@@ -199,7 +214,7 @@ def NotificationsWidget() -> any {
     return Label(
         class="notifications",
         hidden=d.notifications.map(lambda (ns: list) { len(ns) == 0; }),
-        text=d.notifications.map(lambda (ns: list) { "󰂚 " + str(len(ns)); }),
+        text=d.notifications.map(lambda (ns: list) { "NOTIF " + str(len(ns)); }),
     );
 }
 
@@ -208,12 +223,12 @@ def NotificationsWidget() -> any {
 # item list, keyed on the canonical bus+path. Items update IN PLACE (an app fires
 # NewIcon/NewStatus on the same key), so each row reads its per-row Signal via
 # row_item() and binds label/tooltip off it. GTK icon names/pixmaps are skipped
-# here — they often fail to render in layer-shell bars; a Nerd Font glyph or the
-# item's title abbreviation is more reliable. Left-click calls Activate.
+# here — they often fail to render in layer-shell bars; the item's title initial
+# (or a plain '?') is more reliable. Left-click calls Activate.
 def _tray_label(it: dict) -> str {
     t = str(it["title"] or it["id"] or "").strip();
     if t != "" { return t[0:1]; }
-    return "󰇮";
+    return "?";
 }
 def _tray_tip(it: dict) -> str { return it["tooltip"]; }
 def _tray_key(it: dict) -> any { return it["key"]; }
@@ -251,11 +266,11 @@ def TrayWidget() -> any {
 
 # Bar — composition. left: workspaces; center: clock; right: volume + battery.
 # Spacer Boxes with hexpand push the three groups apart.
-# LauncherButton — the apps glyph; toggles the launcher popup window.
+# LauncherButton — the apps toggle; opens the launcher popup window.
 @component
 def LauncherButton() -> any {
     l = get_launcher();
-    return Button(class="launcher-toggle", label="󰀻",
+    return Button(class="launcher-toggle", label="Apps",
         on_click=lambda { l.toggle(); });
 }
 
@@ -286,9 +301,9 @@ def _dnd_class(modes: list) -> str {
 def ModeButtons() -> any {
     modes = active_modes();
     return Box(orientation="H", class="mode-toggles", children=[
-        Button(class=modes.map(_pres_class), label="󰽇", tooltip="Presentation mode",
+        Button(class=modes.map(_pres_class), label="Pres", tooltip="Presentation mode",
             on_click=lambda { _toggle_presentation(); }),
-        Button(class=modes.map(_dnd_class), label="󰂛", tooltip="Do not disturb",
+        Button(class=modes.map(_dnd_class), label="DND", tooltip="Do not disturb",
             on_click=lambda { _toggle_dnd(); }),
     ]);
 }
@@ -298,27 +313,31 @@ def ModeButtons() -> any {
 # single-output / headless fallback). main.jac builds one per connected output.
 @component
 def MinimalBar(mon: any = None) -> any {
-    return Window(class="bar minimal", anchor="top", monitor=mon,
-        child=Box(orientation="H", class="bar-inner minimal", children=[
-            Clock(),
-        ]));
+    win = Window(class="bar minimal", anchor="top", monitor=mon);
+    inner = Box(orientation="H", class="bar-inner minimal");
+    win +>:Child(order=0):+> inner;
+    inner +>:Child(order=0):+> Clock();
+    return win;
 }
 
 
 @component
 def Bar(mon: any = None) -> any {
-    return Window(class="bar", anchor="top", monitor=mon,
-        child=Box(orientation="H", class="bar-inner", children=[
-            LauncherButton(),
-            Workspaces(),
-            MediaWidget(),
-            Box(orientation="H", class="spacer", hexpand=True),
-            Clock(),
-            Box(orientation="H", class="spacer", hexpand=True),
-            ModeButtons(),
-            TrayWidget(),
-            NotificationsWidget(),
-            VolumeWidget(),
-            BatteryWidget(),
-        ]));
+    win = Window(class="bar", anchor="top", monitor=mon);
+    inner = Box(orientation="H", class="bar-inner");
+    win +>:Child(order=0):+> inner;
+    inner +>:Child(order=0):+> LauncherButton();
+    inner +>:Child(order=1):+> Workspaces();
+    inner +>:Child(order=2):+> MediaWidget();
+    inner +>:Child(order=3):+> Box(orientation="H", class="spacer", hexpand=True);
+    inner +>:Child(order=4):+> Clock();
+    inner +>:Child(order=5):+> Box(orientation="H", class="spacer", hexpand=True);
+    inner +>:Child(order=6):+> ModeButtons();
+    inner +>:Child(order=7):+> TrayWidget();
+    inner +>:Child(order=8):+> NotificationsWidget();
+    vol = VolumeButton();
+    vol +>:Anchored(mode="hover", position="bottom"):+> VolumePanel();
+    inner +>:Child(order=9):+> vol;
+    inner +>:Child(order=10):+> BatteryWidget();
+    return win;
 }

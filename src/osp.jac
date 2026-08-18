@@ -68,6 +68,16 @@ edge Child: ViewNode --> ViewNode {
     has order: int = 0;
 }
 
+# Bar-owned popover panel — NOT a GTK layout child. bar +>:Anchored:+> panel
+# records anchor trigger, mode, and position; overlays.jac mounts Gtk.Popover.
+edge Anchored: ViewNode --> ViewNode {
+    has anchor: any = None;       # trigger ViewNode
+    has mode: str = "hover";     # "hover" | "click"
+    has position: str = "bottom";
+    has show_delay_ms: int = 100;
+    has hide_delay_ms: int = 200;
+}
+
 
 # ===========================================================================
 # WALKERS — the actual OSP. Mobile computations over the ViewNode graph.
@@ -81,6 +91,82 @@ walker Dispose {
     can descend with ViewNode entry {
         visit [here ->:Child:->];
     }
+}
+
+# MOUNT — pre-order projection of typed outgoing edges. Authors wire the OSP
+# graph first (init + edge chain); mount_tree spawns this walker. Each edge
+# archetype registers a realizer (Child layout, Anchored popovers, …).
+walker Mount {
+    can attach with ViewNode entry {
+        realize_outgoing_edges(here);
+        visit [here ->:Child:->];
+    }
+}
+
+def sorted_children(parent: ViewNode) -> list {
+    pairs: list = [];
+    for c in [parent ->:Child:->][?:ViewNode] {
+        for e in [edge parent ->:Child:-> c] { pairs.append([e.order, c]); }
+    }
+    pairs.sort(key=lambda (p: list) { p[0]; });
+    return [p[1] for p in pairs];
+}
+
+def child_order(parent: ViewNode, child: ViewNode) -> int {
+    for e in [edge parent ->:Child:-> child] { return e.order; }
+    return 0;
+}
+
+def child_edge(parent: ViewNode, child: ViewNode) -> any {
+    for e in [edge parent ->:Child:-> child] { return e; }
+    return None;
+}
+
+def set_child_order(parent: ViewNode, child: ViewNode, order: int) {
+    e = child_edge(parent, child);
+    if e is not None { e.order = order; }
+}
+
+def sync_child_orders(parent: ViewNode, views: list) {
+    for i in range(len(views)) { set_child_order(parent, views[i], i); }
+}
+
+def realize_child_edges(source: ViewNode) {
+    for c in sorted_children(source) {
+        mount_child(source, c, child_order(source, c));
+    }
+}
+
+# Extensible typed-edge dispatch: each archetype registers a realizer that
+# visits its outgoing edges on `source` and projects them to the adapter.
+glob _edge_realizers: list = [];
+glob _default_realizers_installed: bool = False;
+
+def register_edge_realizer(fn: any, edge_name: str = "") {
+    _edge_realizers.append([edge_name, fn]);
+}
+
+def _install_default_realizers() {
+    if _default_realizers_installed { return; }
+    _default_realizers_installed = True;
+    register_edge_realizer(realize_child_edges, "Child");
+}
+
+def realize_outgoing_edges(source: ViewNode) {
+    _install_default_realizers();
+    for pair in _edge_realizers { pair[1](source); }
+}
+
+def mount_child(parent: ViewNode, child: ViewNode, order: int = -1) {
+    if order < 0 { order = child_order(parent, child); }
+    if child.tag == "Window" {
+        w = child.widget;
+        if w is not None and hasattr(w, "present") { w.present(); }
+        return;
+    }
+    if parent.widget is None or child.widget is None { return; }
+    if adapter().child_at(parent.widget, order) is child.widget { return; }
+    adapter().insert(parent.widget, child.widget, order);
 }
 
 # COLLECT — gather nodes matching a predicate (e.g. all on monitor 2). A walker

@@ -79,9 +79,30 @@ def score(name: any, query: str) -> int {
 }
 
 # Pure: rank apps by score, drop non-matches. Ties break by name for stability.
-# Hot path lives in Python — the Jac interpreter loop is too slow per keystroke.
 def filter_apps(apps: list, query: str, limit: int = 0) -> list {
-    return _filter_apps(apps, query, limit);
+    if len(apps) == 0 { return []; }
+    q = query;
+    if q == "" {
+        ranked = sorted(apps, key=lambda (a: dict) { a.get("lname", a["name"].lower()); });
+        if limit > 0 { return ranked[:limit]; }
+        return ranked;
+    }
+    scored: list = [];
+    for a in apps {
+        lname = a.get("lname");
+        if lname is None { lname = a["name"].lower(); }
+        sc = score(lname, q);
+        if sc > 0 {
+            scored.append((sc, lname, a));
+        }
+    }
+    scored.sort(key=lambda (t: tuple) { (-t[0], t[1]); });
+    out: list = [];
+    for t in scored {
+        out.append(t[2]);
+    }
+    if limit > 0 { return out[:limit]; }
+    return out;
 }
 
 
@@ -89,50 +110,7 @@ def filter_apps(apps: list, query: str, limit: int = 0) -> list {
 # The scan + launch (OS side, not unit-tested here).
 # ---------------------------------------------------------------------------
 ::py::
-import heapq
 import os
-
-
-def _score_lname(n: str, q: str) -> int:
-    if not q:
-        return 1
-    s = 0
-    qi = 0
-    prev = -2
-    for i, ch in enumerate(n):
-        if qi < len(q) and ch == q[qi]:
-            s += 3 if i == prev + 1 else 1
-            if i == 0 and qi == 0:
-                s += 5
-            prev = i
-            qi += 1
-    if qi < len(q):
-        return 0
-    return s
-
-
-def _filter_apps(apps, query, limit=0):
-    if not apps:
-        return []
-    q = (query or "").lower()
-    if not q:
-        ranked = sorted(apps, key=lambda a: a.get("lname", a["name"].lower()))
-        return ranked[:limit] if limit else ranked
-    scored = []
-    for a in apps:
-        lname = a.get("lname")
-        if lname is None:
-            lname = a["name"].lower()
-        sc = _score_lname(lname, q)
-        if sc > 0:
-            scored.append((sc, lname, a))
-    if limit and len(scored) > limit:
-        top = heapq.nlargest(limit, scored, key=lambda t: t[0])
-        top.sort(key=lambda t: (-t[0], t[1]))
-        return [t[2] for t in top]
-    scored.sort(key=lambda t: (-t[0], t[1]))
-    out = [t[2] for t in scored]
-    return out[:limit] if limit else out
 
 
 def _desktop_dirs():

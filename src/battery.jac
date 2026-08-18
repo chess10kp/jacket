@@ -69,15 +69,18 @@ def parse_battery(percentage: any, state: any) -> dict {
     };
 }
 
-# A nerdfont/emoji glyph by charge bucket; charging overrides with a bolt.
+# A plain-text meter (no icon font needed): one '#' per 20% bucket, '-' for
+# the rest. Charging is the single marker "CHG" regardless of charge level.
 def battery_icon(percent: int, charging: bool) -> str {
-    if charging { return "󰂄"; }
-    if percent >= 90 { return "󰁹"; }
-    if percent >= 70 { return "󰂀"; }
-    if percent >= 50 { return "󰁾"; }
-    if percent >= 30 { return "󰁼"; }
-    if percent >= 10 { return "󰁻"; }
-    return "󰂎";
+    if charging { return "CHG"; }
+    n = 0;
+    if percent >= 90 { n = 5; }
+    elif percent >= 70 { n = 4; }
+    elif percent >= 50 { n = 3; }
+    elif percent >= 30 { n = 2; }
+    elif percent >= 10 { n = 1; }
+    cells = "#" * n + "-" * (5 - n);
+    return "[" + cells + "]";
 }
 
 

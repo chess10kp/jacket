@@ -6,9 +6,7 @@ glob CSS: str = """
 .bar {
     background: rgba(20, 22, 30, 0.92);
     color: #e6e6e6;
-    font-family: 'Iosevka Nerd Font', 'Iosevka Nerd Font Mono',
-        'Symbols Nerd Font Mono', 'JetBrainsMono Nerd Font',
-        'FiraCode Nerd Font', 'Hack Nerd Font', monospace;
+    font-family: 'Iosevka', monospace;
     font-size: 14px;
 }
 .bar-inner {
@@ -80,6 +78,15 @@ glob CSS: str = """
 .notif-body { color: #c8ccd4; }
 .volume { background: transparent; border: none; box-shadow: none; }
 .volume:hover { background: rgba(255, 255, 255, 0.08); }
+.volume-overlay {
+    background: #2a2d38;
+    border: 1px solid #3d4250;
+    border-radius: 8px;
+    padding: 10px 12px;
+    min-width: 200px;
+}
+.volume-overlay-title { color: #e8eaed; padding-bottom: 6px; }
+.volume-slider { min-height: 24px; }
 /* System tray (StatusNotifierItem) */
 .tray { padding: 0 4px; }
 .tray-item {

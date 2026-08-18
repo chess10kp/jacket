@@ -17,7 +17,7 @@ import from examples.swaybar.sources {
 @component
 def CountdownWidget() -> any {
     cd = countdown();
-    txt = cd.map(lambda (s: str) { ("" if s == "" else "󰔚 " + s); });
+    txt = cd.map(lambda (s: str) { ("" if s == "" else "T- " + s); });
     return Label(class="countdown", text=txt, hidden=cd.map(lambda (s: str) { s == ""; }));
 }
 
@@ -35,7 +35,7 @@ def StocksWidget() -> any {
 @component
 def MemWidget() -> any {
     m = get_mem();
-    return Label(class="mem", text=m.used.map(lambda (u: str) { "󰍛 " + u; }));
+    return Label(class="mem", text=m.used.map(lambda (u: str) { "MEM " + u; }));
 }
 
 
@@ -45,7 +45,7 @@ def BluetoothWidget() -> any {
     b = get_bluetooth();
     dev = b.device;
     return Label(class="bt",
-        text=dev.map(lambda (n: str) { ("" if n == "" else "󰂯 " + n); }),
+        text=dev.map(lambda (n: str) { ("" if n == "" else "BT " + n); }),
         hidden=dev.map(lambda (n: str) { n == ""; }));
 }
 
@@ -58,8 +58,8 @@ def ClockWidget() -> any {
 }
 
 
-# Battery — icon + percent. Faithful to the script's colours: red at/below 20%,
-# yellow otherwise; charging shows the bolt glyph from the library's icon picker.
+# Battery — meter + percent. Faithful to the script's colours: red at/below 20%,
+# yellow otherwise; charging shows the '+' marker in the library's meter.
 # Hidden entirely when no battery is present.
 def _batt_text(d: dict) -> str {
     return battery_icon(d["percent"], d["charging"]) + " " + str(d["percent"]) + "%";

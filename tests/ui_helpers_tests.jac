@@ -7,7 +7,9 @@
 # a shape/typo change would silently break. Import pulls only the gi *module*
 # (no daemon/socket/display at import), so these run headless.
 import from examples.reference.notif_ui { _app, _summary, _body, _urgency_class, _empty, _key }
-import from examples.reference.launcher_ui { _not_visible, _row_key }
+import from examples.reference.launcher_ui {
+    _not_visible, _slot_key, _row_label, _row_hidden, _make_slots
+}
 
 
 test "notif_ui projections read the notification dict fields" {
@@ -30,8 +32,21 @@ test "_empty drives the notif-layer's hidden binding off list length" {
     assert _empty([{"id": 1}, {"id": 2}]) == False;
 }
 
-test "launcher_ui: _not_visible inverts the visible flag; _row_key reads the key" {
+test "launcher_ui: _not_visible inverts the visible flag" {
     assert _not_visible(True) == False;
     assert _not_visible(False) == True;
-    assert _row_key({"key": "firefox.desktop", "name": "Firefox"}) == "firefox.desktop";
+}
+
+test "launcher_ui: slot pool helpers pad to limit with stable keys" {
+    apps = [
+        {"name": "Firefox", "exec": "firefox", "key": "firefox.desktop", "lname": "firefox"},
+        {"name": "Files", "exec": "nautilus", "key": "files.desktop", "lname": "files"},
+    ];
+    slots = _make_slots(apps, "f", 3);
+    assert len(slots) == 3;
+    assert _slot_key(slots[0]) == 0;
+    assert _slot_key(slots[2]) == 2;
+    assert _row_label(slots[0]) != "";
+    assert _row_hidden(slots[0]) == False;
+    assert _row_hidden(slots[2]) == True;
 }

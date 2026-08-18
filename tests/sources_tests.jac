@@ -4,11 +4,25 @@
 import from src.hyprland { parse_workspaces, parse_active }
 import from src.sway { parse_sway_workspaces }
 import from src.battery { parse_battery, battery_icon }
+import from src.power_profiles {
+    normalize_profile, parse_profile_properties, parse_powerprofilesctl_output,
+    next_profile
+}
 import from src.audio { parse_volume }
+import from src.brightness { parse_brightnessctl_info, parse_brightnessctl_get }
+import from src.pipewire {
+    parse_vol_from_desc, parse_device_line, parse_wpctl_status,
+    merge_device_volume, resolve_wpctl_id
+}
 import from src.launcher { parse_desktop, filter_apps, score, strip_field_codes }
 import from src.notifications { make_notification, apply_notify, dismiss, resolve_timeout, hint_urgency }
 import from src.mpris { parse_metadata, is_playing, format_status }
 import from src.tray { resolve_item, split_item_key, should_show, pick_icon_name, _pixmap_to_texture, parse_menu_layout, clean_label }
+import from src.network { parse_nmcli_general_status, parse_nmcli_wifi_list, parse_nmcli_active_connection }
+import from src.bluetooth {
+    parse_bluetoothctl_devices, parse_bluetoothctl_show_powered,
+    parse_bluetoothctl_paired, primary_device_from_connected
+}
 
 
 # --- Hyprland ---------------------------------------------------------------
@@ -48,6 +62,84 @@ test "parse_sway_workspaces maps num/output/focused, sorted" {
 }
 
 
+# --- Bluetooth --------------------------------------------------------------
+test "parse_bluetoothctl_devices reads Connected lines" {
+    txt = "Device 88:0E:85:39:E6:9C soundcore Life Q20\n"
+        + "Device AA:BB:CC:DD:EE:FF\n"
+        + "garbage line\n";
+    devs = parse_bluetoothctl_devices(txt);
+    assert len(devs) == 2;
+    assert devs[0]["address"] == "88:0E:85:39:E6:9C";
+    assert devs[0]["name"] == "soundcore Life Q20";
+    assert devs[0]["alias"] == "soundcore Life Q20";
+    assert devs[1]["name"] == "";
+}
+
+test "parse_bluetoothctl_show_powered reads yes/no" {
+    assert parse_bluetoothctl_show_powered("Powered: yes\n") == True;
+    assert parse_bluetoothctl_show_powered("Powered: no\n") == False;
+    assert parse_bluetoothctl_show_powered("no Powered here\n") == False;
+}
+
+test "parse_bluetoothctl_paired mirrors devices parser" {
+    txt = "Device C4:EF:3D:91:96:24 Galaxy S24 FE\n";
+    paired = parse_bluetoothctl_paired(txt);
+    assert len(paired) == 1;
+    assert paired[0]["name"] == "Galaxy S24 FE";
+}
+
+test "primary_device_from_connected picks first name or alias" {
+    assert primary_device_from_connected([]) == "";
+    devs = [
+        {"name": "Headphones", "address": "AA:BB", "alias": "HP"},
+        {"name": "Phone", "address": "CC:DD", "alias": "Phone"},
+    ];
+    assert primary_device_from_connected(devs) == "Headphones";
+    no_name = [{"name": "", "address": "AA:BB", "alias": "Fallback"}];
+    assert primary_device_from_connected(no_name) == "Fallback";
+}
+
+
+# --- Network (nmcli parsers) ------------------------------------------------
+test "parse_nmcli_general_status reads wifi radio + connected state" {
+    g = parse_nmcli_general_status("enabled:connected");
+    assert g["available"] == True;
+    assert g["wifi_enabled"] == True;
+    assert g["connected"] == True;
+    d = parse_nmcli_general_status("disabled:disconnected");
+    assert d["wifi_enabled"] == False;
+    assert d["connected"] == False;
+    assert parse_nmcli_general_status("")["available"] == False;
+}
+
+test "parse_nmcli_wifi_list dedupes by ssid, keeps strongest, marks active" {
+    txt = "no:Guest:40:WPA2\nyes:Home:72:WPA2\nno:Home:55:WPA2\nno::80:--\n";
+    nets = parse_nmcli_wifi_list(txt);
+    assert len(nets) == 2;
+    assert nets[0]["ssid"] == "Home";
+    assert nets[0]["strength"] == 72;
+    assert nets[0]["secured"] == True;
+    assert nets[0]["active"] == True;
+    assert nets[1]["ssid"] == "Guest";
+    assert nets[1]["active"] == False;
+}
+
+test "parse_nmcli_active_connection prefers wifi over bridge/loopback" {
+    txt = "lo:loopback:lo:activated\n"
+        + "docker0:bridge:docker0:activated\n"
+        + "Office:802-11-wireless:wlan0:activated\n";
+    a = parse_nmcli_active_connection(txt);
+    assert a["connected"] == True;
+    assert a["connection_type"] == "wifi";
+    assert a["device"] == "wlan0";
+    assert a["ssid"] == "Office";
+    eth = parse_nmcli_active_connection("Work:802-3-ethernet:enp0s31f6:activated\n");
+    assert eth["connection_type"] == "ethernet";
+    assert eth["ssid"] == "";
+    assert parse_nmcli_active_connection("")["connected"] == False;
+}
+
+
 # --- Battery ----------------------------------------------------------------
 test "parse_battery normalizes percentage + charging state" {
     b = parse_battery(42.0, 2);            # UPower Percentage is 0-100; state 2 = Discharging
@@ -61,6 +153,131 @@ test "parse_battery normalizes percentage + charging state" {
 test "battery_icon steps by charge + charging flag" {
     assert battery_icon(5, False) != battery_icon(95, False);
     assert battery_icon(50, True) != battery_icon(50, False);
+}
+
+
+# --- Power profiles ---------------------------------------------------------
+test "normalize_profile maps canonical names and aliases" {
+    assert normalize_profile("performance") == "performance";
+    assert normalize_profile("balanced") == "balanced";
+    assert normalize_profile("power-saver") == "power-saver";
+    assert normalize_profile("power-save") == "power-saver";
+    assert normalize_profile("POWER_SAVER") == "power-saver";
+    assert normalize_profile("unknown") == "balanced";
+}
+
+test "parse_powerprofilesctl_output strips whitespace" {
+    assert parse_powerprofilesctl_output("power-saver\n") == "power-saver";
+    assert parse_powerprofilesctl_output(" balanced ") == "balanced";
+}
+
+test "parse_profile_properties extracts profile, has_performance, degradation" {
+    props = {
+        "ActiveProfile": "balanced",
+        "Profiles": [
+            {"Profile": "power-saver"},
+            {"Profile": "balanced"},
+            {"Profile": "performance"},
+        ],
+        "PerformanceDegraded": "thermal",
+        "PerformanceInhibited": "",
+    };
+    r = parse_profile_properties(props);
+    assert r["available"] == True;
+    assert r["profile"] == "balanced";
+    assert r["has_performance"] == True;
+    assert r["degradation_reason"] == "thermal";
+}
+
+test "parse_profile_properties uses inhibited when degraded is empty" {
+    props = {
+        "ActiveProfile": "performance",
+        "Profiles": [{"Profile": "performance"}],
+        "PerformanceDegraded": "",
+        "PerformanceInhibited": "low-battery",
+    };
+    r = parse_profile_properties(props);
+    assert r["degradation_reason"] == "low-battery";
+    assert r["has_performance"] == True;
+}
+
+test "parse_profile_properties without performance profile" {
+    props = {
+        "ActiveProfile": "balanced",
+        "Profiles": [{"Profile": "balanced"}, {"Profile": "power-saver"}],
+        "PerformanceDegraded": "",
+        "PerformanceInhibited": "",
+    };
+    r = parse_profile_properties(props);
+    assert r["has_performance"] == False;
+    assert r["degradation_reason"] == "";
+}
+
+test "next_profile cycles balanced -> performance -> power-saver -> balanced" {
+    assert next_profile("balanced") == "performance";
+    assert next_profile("performance") == "power-saver";
+    assert next_profile("power-saver") == "balanced";
+    assert next_profile("garbage") == "performance";  # unknown normalizes to balanced
+}
+
+
+# --- Brightness -------------------------------------------------------------
+test "parse_brightnessctl_info reads machine -m output" {
+    m = "intel_backlight,backlight,340,85%,400";
+    b = parse_brightnessctl_info(m);
+    assert b["available"] == True;
+    assert b["device"] == "intel_backlight";
+    assert b["raw"] == 340;
+    assert b["percent"] == 85;
+    assert b["max"] == 400;
+}
+
+test "parse_brightnessctl_info reads -l backlight block" {
+    txt = "Available devices:\n"
+        + "Device 'intel_backlight' of class 'backlight':\n"
+        + "\tCurrent brightness: 200 (50%)\n"
+        + "\tMax brightness: 400\n"
+        + "Device 'phy0-led' of class 'leds':\n"
+        + "\tCurrent brightness: 1 (100%)\n"
+        + "\tMax brightness: 1\n";
+    b = parse_brightnessctl_info(txt);
+    assert b["available"] == True;
+    assert b["device"] == "intel_backlight";
+    assert b["raw"] == 200;
+    assert b["percent"] == 50;
+    assert b["max"] == 400;
+}
+
+test "parse_brightnessctl_info skips non-backlight machine lines" {
+    m = "phy0-led,leds,1,100%,1\nintel_backlight,backlight,80,20%,400";
+    b = parse_brightnessctl_info(m);
+    assert b["device"] == "intel_backlight";
+    assert b["percent"] == 20;
+}
+
+test "parse_brightnessctl_info tolerates empty / garbage" {
+    e = parse_brightnessctl_info("");
+    assert e["available"] == False;
+    assert parse_brightnessctl_info("no backlight here")["available"] == False;
+}
+
+test "parse_brightnessctl_get from get+max lines" {
+    b = parse_brightnessctl_get("340\n400");
+    assert b["available"] == True;
+    assert b["raw"] == 340;
+    assert b["max"] == 400;
+    assert b["percent"] == 85;
+}
+
+test "parse_brightnessctl_get accepts raw/max slash form" {
+    b = parse_brightnessctl_get("200/400");
+    assert b["raw"] == 200;
+    assert b["max"] == 400;
+    assert b["percent"] == 50;
+}
+
+test "parse_brightnessctl_get rejects zero max" {
+    assert parse_brightnessctl_get("100\n0")["available"] == False;
 }
 
 
@@ -240,7 +457,7 @@ test "parse_battery rounds percentage to the nearest int" {
     assert parse_battery(99.9, 1)["percent"] == 100;
 }
 
-test "battery_icon gives a distinct glyph per bucket; charging overrides" {
+test "battery_icon gives a distinct meter per bucket; charging overrides" {
     # boundary values exercise each >= step (90/70/50/30/10)
     glyphs = [
         battery_icon(90, False), battery_icon(70, False),
@@ -249,7 +466,7 @@ test "battery_icon gives a distinct glyph per bucket; charging overrides" {
     ];
     assert len(set(glyphs)) == 6;                          # 6 discharging buckets
     assert battery_icon(95, False) == battery_icon(90, False);   # same top bucket
-    assert battery_icon(0, True) == battery_icon(100, True);     # bolt regardless of charge
+    assert battery_icon(0, True) == battery_icon(100, True);     # one marker regardless of charge
 }
 
 
@@ -271,6 +488,84 @@ test "parse_volume with no numeric token is zero, unmuted" {
     v = parse_volume("Volume: n/a");
     assert v["percent"] == 0;
     assert v["muted"] == False;
+}
+
+
+# --- PipeWire (wpctl status / get-volume parsers) ---------------------------
+def sample_wpctl_status() -> str {
+    return "Audio\n"
+        + " ├─ Sinks:\n"
+        + " │      59. HDMI Output [vol: 1.00]\n"
+        + " │  *   93. soundcore Life Q20 [vol: 0.28]\n"
+        + " ├─ Sources:\n"
+        + " │      63. Microphone [vol: 1.00]\n"
+        + " ├─ Filters:\n"
+        + " │  *  102. bluez_input [Audio/Source]\n"
+        + "Video\n";
+}
+
+test "parse_vol_from_desc reads vol bracket and muted marker" {
+    v = parse_vol_from_desc("vol: 0.28");
+    assert v["percent"] == 28;
+    assert v["muted"] == False;
+    m = parse_vol_from_desc("vol: 0.30 [MUTED]");
+    assert m["percent"] == 30;
+    assert m["muted"] == True;
+    assert parse_vol_from_desc("Audio/Source")["percent"] == 0;
+}
+
+test "parse_device_line extracts id, name, default star, description" {
+    d = parse_device_line(" │  *   93. soundcore Life Q20 [vol: 0.28]");
+    assert d is not None;
+    assert d["id"] == 93;
+    assert d["name"] == "soundcore Life Q20";
+    assert d["percent"] == 28;
+    assert d["default"] == True;
+    assert d["description"] == "vol: 0.28";
+    plain = parse_device_line(" │      63. Microphone [vol: 1.00]");
+    assert plain["default"] == False;
+    assert plain["name"] == "Microphone";
+}
+
+test "parse_device_line rejects non-device lines" {
+    assert parse_device_line(" ├─ Sinks:") is None;
+    assert parse_device_line("") is None;
+    assert parse_device_line("no id here") is None;
+}
+
+test "parse_wpctl_status collects sinks, sources, defaults" {
+    p = parse_wpctl_status(sample_wpctl_status());
+    assert p["ready"] == True;
+    assert len(p["sinks"]) == 2;
+    assert len(p["sources"]) == 2;           # Sources + Filters inputs
+    assert p["default_sink"]["id"] == 93;
+    assert p["default_sink"]["name"] == "soundcore Life Q20";
+    assert p["default_sink"]["percent"] == 28;
+    assert p["default_source"]["id"] == 102;
+    assert p["default_source"]["name"] == "bluez_input";
+}
+
+test "parse_wpctl_status tolerates garbage / empty" {
+    empty = parse_wpctl_status("");
+    assert empty["ready"] == False;
+    assert empty["default_sink"]["id"] == 0;
+    assert empty["sinks"] == [];
+    assert empty["sources"] == [];
+}
+
+test "merge_device_volume prefers get-volume mute + percent" {
+    dev = {"id": 93, "name": "Headphones", "percent": 28, "muted": False, "description": "vol: 0.28"};
+    merged = merge_device_volume(dev, "Volume: 0.30 [MUTED]");
+    assert merged["percent"] == 30;
+    assert merged["muted"] == True;
+    assert merged["name"] == "Headphones";
+}
+
+test "resolve_wpctl_id maps default aliases and passes numeric ids" {
+    assert resolve_wpctl_id("default", "sink") == "@DEFAULT_AUDIO_SINK@";
+    assert resolve_wpctl_id("", "source") == "@DEFAULT_AUDIO_SOURCE@";
+    assert resolve_wpctl_id("93", "sink") == "93";
+    assert resolve_wpctl_id("@DEFAULT_AUDIO_SINK@", "sink") == "@DEFAULT_AUDIO_SINK@";
 }
 
 
@@ -324,10 +619,10 @@ test "parse_metadata handles an empty artist list and a missing title" {
     assert parse_metadata({})["artist"] == "";
 }
 
-test "format_status picks a play/pause glyph and drops an empty artist" {
+test "format_status picks a play/pause marker and drops an empty artist" {
     paused = format_status({"has_player": True, "playing": False, "title": "T", "artist": "A"});
     playing = format_status({"has_player": True, "playing": True, "title": "T", "artist": "A"});
-    assert paused != playing;                              # glyph differs by state
+    assert paused != playing;                              # marker differs by state
     assert "A — T" in paused;
     solo = format_status({"has_player": True, "playing": True, "title": "T", "artist": ""});
     assert "—" not in solo;                                # no dash without an artist

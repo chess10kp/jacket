@@ -6,7 +6,7 @@
 import from src.reactive { signal }
 import from src.mock_adapter { install_mock }
 import from src.builders { Box, Label, Button, For, Show, Entry, Slider }
-import from src.osp { Dispose }
+import from src.osp { Dispose, child_order, sorted_children }
 import from src.topology_reactive { feed_targets }
 
 
@@ -126,6 +126,26 @@ test "For reuses rows by key (identity stable across moves)" {
     assert count_kind(m.ops[n0:], "move") == 0;
     assert count_kind(m.ops[n0:], "insert") == 0;
     assert count_kind(m.ops[n0:], "remove") == 0;
+}
+
+def child_orders(parent: any) -> list {
+    return [child_order(parent, c) for c in sorted_children(parent)];
+}
+
+test "For prepend keeps Child.order aligned with GTK order" {
+    install_mock();
+    [box, src] = int_for([1, 2, 3]);
+    src.set([0, 1, 2, 3]);
+    kids = sorted_children(box);
+    assert [k.key for k in kids] == [0, 1, 2, 3];
+    assert child_orders(box) == [0, 1, 2, 3];
+}
+
+test "For reverse rewrites every Child.order to match final layout" {
+    install_mock();
+    [box, src] = int_for([1, 2, 3, 4]);
+    src.set([4, 3, 2, 1]);
+    assert child_orders(box) == [0, 1, 2, 3];
 }
 
 

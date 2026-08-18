@@ -26,5 +26,5 @@ test "_tray_* project the row dict fields the reactive props bind" {
 }
 
 test "_tray_label falls back to a glyph when title and id are empty" {
-    assert _tray_label({"id": "", "title": None, "tooltip": "", "key": "k"}) == "󰇮";
+    assert _tray_label({"id": "", "title": None, "tooltip": "", "key": "k"}) == "?";
 }
