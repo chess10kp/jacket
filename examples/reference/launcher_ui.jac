@@ -8,7 +8,7 @@
 # (no For insert/remove churn). Visibility is driven by the launcher's `visible`
 # Signal (toggled from the bar).
 import from src.reactive { computed, effect }
-import from src.animation { animated, ease }
+import from src.transition { popup_transition }
 import from src.builders { component, Box, Button, Entry, Window, For, row_item }
 import from src.launcher { get_launcher, filter_apps }
 import from src.adapter { grab_focus, set_prop }
@@ -77,20 +77,6 @@ def _on_enter() { launch_first(get_launcher()); }
 def _on_stop_search() { get_launcher().hide(); }
 def _not_visible(v: bool) -> bool { return not v; }
 
-# Slide/fade the popup when the launcher opens. Snaps back on close so the next
-# open replays the enter animation. Signal-sampled each frame → set_prop.
-def _sync_launcher_slide(visible: bool, slide: any, fade: any) {
-    if visible {
-        slide.set(24.0);
-        fade.set(0.0);
-        slide.to(0.0, ms=280, ease_fn=ease.out);
-        fade.to(1.0, ms=200, ease_fn=ease.out);
-    } else {
-        slide.set(24.0);
-        fade.set(0.0);
-    }
-}
-
 def _focus_entry(entry_node: any) {
     w = entry_node.widget;
     if w is not None {
@@ -105,11 +91,10 @@ def _focus_entry(entry_node: any) {
 @component
 def LauncherWindow() -> any {
     l = get_launcher();
-    slide = animated(24.0);
-    fade = animated(0.0);
-    effect(lambda {
-        _sync_launcher_slide(l.visible(), slide, fade);
-    });
+    # Enter: snap to the hidden pose, slide down + fade in. Exit: reverse the
+    # tween, THEN unmap (shown flips False in the slide tween's on_done) —
+    # re-opening mid-exit cancels the pending hide. See src/transition.jac.
+    tr = popup_transition(l.visible);
     slots = computed(lambda {
         _make_slots(l.apps(), l.query(), MAX_RESULTS);
     });
@@ -123,9 +108,9 @@ def LauncherWindow() -> any {
         For(slots, key=_slot_key, row=launch_row),
     ]);
     box = Box(orientation="V", class="launcher-box",
-        opacity=fade,
-        margin_top=slide,
+        opacity=tr.fade,
+        margin_top=tr.slide,
         children=[entry, rows]);
     return Window(class="launcher", layer="overlay", keyboard=l.visible,
-        hidden=l.visible.map(_not_visible), child=box);
+        hidden=tr.shown.map(_not_visible), child=box);
 }

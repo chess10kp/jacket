@@ -15,7 +15,7 @@ import from src.pipewire {
     merge_device_volume, resolve_wpctl_id
 }
 import from src.launcher { parse_desktop, filter_apps, score, strip_field_codes }
-import from src.notifications { make_notification, apply_notify, dismiss, resolve_timeout, hint_urgency }
+import from src.notifications { make_notification, apply_notify, dismiss, mark_closing, is_closing, resolve_timeout, hint_urgency }
 import from src.mpris { parse_metadata, is_playing, format_status }
 import from src.tray { resolve_item, split_item_key, should_show, pick_icon_name, _pixmap_to_texture, parse_menu_layout, clean_label }
 import from src.network { parse_nmcli_general_status, parse_nmcli_wifi_list, parse_nmcli_active_connection }
@@ -471,6 +471,30 @@ test "dismiss removes by id" {
     assert len(b) == 1;
     assert b[0]["id"] == 2;
     assert dismiss(b, 99) == b;            # missing id is a no-op
+}
+
+test "mark_closing flags one row, keeps list identity elsewhere" {
+    a = apply_notify(apply_notify([], notif(1, 1)), notif(2, 1));
+    b = mark_closing(a, 1);
+    assert len(b) == 2;
+    assert b[0]["closing"] == True;       # flagged for the exit tween
+    assert b[1]["closing"] == False;
+    assert a[0]["closing"] == False;      # original untouched (new dicts)
+    assert is_closing(b, 1) == True;
+    assert is_closing(b, 2) == False;
+    assert is_closing(b, 99) == False;     # missing id: not closing
+    c = mark_closing(b, 1);                # already closing: idempotent
+    assert c == b;
+    assert mark_closing(a, 99) == a;       # missing id: no-op
+}
+
+test "re-Notify replaces a closing row with a fresh non-closing one" {
+    a = apply_notify([], notif(1, 1));
+    b = mark_closing(a, 1);
+    assert is_closing(b, 1) == True;
+    replaced = apply_notify(b, notif(1, 2));   # replaces_id semantics
+    assert len(replaced) == 1;
+    assert is_closing(replaced, 1) == False;   # stale grace timeout must skip
 }
 
 test "resolve_timeout: critical is sticky, 0 never, -1 defaults" {

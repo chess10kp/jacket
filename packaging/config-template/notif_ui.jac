@@ -32,8 +32,8 @@ def notif_row(n: dict) -> any {
     return Box(
         orientation="V",
         class=cur.map(_urgency_class),
-        opacity=enter_tween(0.0, 1.0, ms=200, ease_fn=ease.out),
-        margin_top=enter_tween(24.0, 0.0, ms=280, ease_fn=ease.out),
+        opacity=1.0,                          # instant: no fade-in (latency)
+        margin_top=enter_tween(24.0, 0.0, ms=200, ease_fn=ease.out),
         children=[
             head,
             Label(class="notif-summary", text=cur.map(_summary)),

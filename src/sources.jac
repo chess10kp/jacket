@@ -7,7 +7,7 @@
 # Phase 4; this file ships the clock ticker used by the Phase-3 demo.)
 import from time { time, localtime, strftime }
 import from src.reactive { signal, Signal, flush }
-import from src.glib { timeout_add }
+import from src.glib { timeout_add, guard_call }
 
 
 glob _ticker_cache: dict = {};
@@ -37,11 +37,17 @@ def _fire_ticker(s: Signal, interval_ms: int) {
     flush();
 }
 
+# Guarded repeating tick: an exception escaping a PyGObject timeout callback
+# destroys the GLib source SILENTLY (2026-08-20: a PgWireError out of flush()
+# killed every 1s ticker -> frozen clock). One bad tick logs and is skipped;
+# the clock never dies.
+def _ticker_tick(s: Signal, interval_ms: int) -> bool {
+    guard_call(lambda { _fire_ticker(s, interval_ms); }, "ticker " + str(interval_ms) + "ms");
+    return True;
+}
+
 def _schedule_repeating_ticker(s: Signal, interval_ms: int) {
-    timeout_add(interval_ms, lambda {
-        _fire_ticker(s, interval_ms);
-        return True;
-    });
+    timeout_add(interval_ms, lambda { return _ticker_tick(s, interval_ms); });
 }
 
 def _start_ticker(s: Signal, interval_ms: int) {

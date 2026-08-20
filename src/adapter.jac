@@ -550,6 +550,15 @@ def set_prop(w: any, name: str, value: any) {
     } elif name == "margin_top" {
         if hasattr(w, "set_margin_top") { w.set_margin_top(int(value)); }
         else { set_margin(w, EDGE_TOP, int(value)); }
+    } elif name == "margin_bottom" {
+        if hasattr(w, "set_margin_bottom") { w.set_margin_bottom(int(value)); }
+        else { set_margin(w, EDGE_BOTTOM, int(value)); }
+    } elif name == "margin_start" {
+        if hasattr(w, "set_margin_start") { w.set_margin_start(int(value)); }
+        else { set_margin(w, EDGE_LEFT, int(value)); }
+    } elif name == "margin_end" {
+        if hasattr(w, "set_margin_end") { w.set_margin_end(int(value)); }
+        else { set_margin(w, EDGE_RIGHT, int(value)); }
     } else {
         w.set_property(name.replace("_", "-"), value);
     }

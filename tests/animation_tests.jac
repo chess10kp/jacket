@@ -105,6 +105,63 @@ test "enter_tween animates from to to" {
     assert not a.is_running();
 }
 
+test "on_done fires when the tween completes" {
+    reset_animation_state();
+    hits: list = [];
+    a = animated(0);
+    a.to(100, ms=100, ease_fn=ease.linear, on_done=lambda { hits.append(1); });
+    advance_animations(50);
+    flush();
+    assert len(hits) == 0;
+    advance_animations(50);
+    flush();
+    assert a() == 100;
+    assert len(hits) == 1;
+}
+
+test "on_done fires synchronously when already at target" {
+    reset_animation_state();
+    hits: list = [];
+    a = animated(7);
+    a.to(7, ms=100, on_done=lambda { hits.append(1); });
+    assert len(hits) == 1;                      # no tween ever registered
+    assert active_tween_count() == 0;
+}
+
+test "retarget or set drops the pending on_done" {
+    reset_animation_state();
+    hits: list = [];
+    a = animated(0);
+    a.to(100, ms=100, ease_fn=ease.linear, on_done=lambda { hits.append(1); });
+    a.set(42);                                  # cancel: never completed
+    advance_animations(200);
+    flush();
+    assert len(hits) == 0;
+    b = animated(0);
+    b.to(100, ms=100, ease_fn=ease.linear, on_done=lambda { hits.append(2); });
+    advance_animations(50);
+    b.to(0, ms=50, ease_fn=ease.linear);        # retarget cancels the first
+    advance_animations(100);
+    flush();
+    assert b() == 0;
+    assert len(hits) == 0;
+}
+
+test "on_done can start a chained tween safely" {
+    reset_animation_state();
+    a = animated(0);
+    b = animated(10);
+    a.to(1, ms=50, ease_fn=ease.linear, on_done=lambda { b.to(20, ms=50, ease_fn=ease.linear); });
+    advance_animations(50);
+    flush();
+    assert a() == 1;
+    assert b.is_running();
+    advance_animations(50);
+    flush();
+    assert b() == 20;
+    assert not b.is_running();
+}
+
 test "integration Label opacity reactive prop patches" {
     reset_animation_state();
     m = install_mock();

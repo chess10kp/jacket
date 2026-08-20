@@ -13,6 +13,22 @@ def timeout_add(ms, fn):
 def source_remove(sid):
     return GLib.source_remove(sid)
 
+def guard_call(fn, label):
+    """Run fn(); on exception print the traceback and return False.
+
+    Keeps GLib periodic sources alive: an exception that escapes a
+    PyGObject callback makes the callback return None, and GLib then
+    DESTROYS the source silently (the frozen-clock bug — one bad tick
+    must never kill a repeating timer)."""
+    try:
+        fn()
+        return True
+    except Exception:
+        import sys, traceback
+        print(f"[jacket] {label} failed (source kept alive):\n{traceback.format_exc()}",
+              file=sys.stderr, flush=True)
+        return False
+
 def run_for(ms):
     """Run the GLib main loop for `ms` ms, then quit. Lets headless probes pump
     timeouts/idle callbacks (and reactive flushes) without a Gtk.Application."""

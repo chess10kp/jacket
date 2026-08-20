@@ -3,21 +3,48 @@
 #
 # gtk4-layer-shell is loaded globally from src/adapter.jac (ctypes.CDLL before
 # `import gi`), so it is in place before GTK opens the Wayland display. No
-# LD_PRELOAD is required. If anchoring ever regresses, the old preload shim is
-# in git history — but please treat that as a bug in the early-load path, not
-# the supported fix.
+# LD_PRELOAD is required.
 #
 # Usage:
-#   ./run.sh                              # start the reference bar (server)
-#   ./run.sh status --json                # IPC to the running instance
-#   ./run.sh mode enter presentation
+#   ./run.sh                              # user config (auto-inits on first run)
+#   ./run.sh --watch                      # dev mode (user config)
+#   ./run.sh launcher toggle              # fast socket IPC
+#   ./run.sh status --json
 #   ./run.sh examples/minimal/main.jac    # alternate entrypoint
-DEFAULT="$(dirname "$0")/examples/reference/main.jac"
-ENTRY="$DEFAULT"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cd "$HERE" || exit 1
+
+JACKET="$HERE/bin/jacket"
+
+# Fast path: Unix socket when the bar is already running.
+if [ "$#" -gt 0 ] && [ -x "$HERE/bin/jacket-ctl" ]; then
+    case "$1" in
+        status|mode|why|affected-by|quit|reload|toggle|stocks)
+            exec "$HERE/bin/jacket-ctl" "$@"
+            ;;
+    esac
+fi
+
+# Explicit .jac entrypoint (library dev / examples).
 case "$1" in
     *.jac|*.py)
-        ENTRY="$1"
-        shift
+        exec jac run "$@"
         ;;
 esac
-exec jac run "$ENTRY" "$@"
+
+# User config via jacket CLI when available.
+if [ -x "$JACKET" ]; then
+    WATCH=""
+    if [ "$1" = "--watch" ]; then
+        WATCH="--watch"
+        shift
+    fi
+    # `./run.sh run` is a common mistake — don't forward "run" to IPC.
+    if [ "$1" = "run" ]; then
+        shift
+    fi
+    exec "$JACKET" run $WATCH "$@"
+fi
+
+# Fallback: reference bar from the repo.
+exec jac run "$HERE/examples/reference/main.jac" "$@"

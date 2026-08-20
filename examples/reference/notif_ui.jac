@@ -8,7 +8,7 @@
 # via row_item() — the row_fn snapshot would go stale (see builders.jac For).
 # The window hides itself when the list is empty.
 import from src.builders { component, Box, Label, Button, Window, For, Show, row_item }
-import from src.animation { animated, enter_tween, ease }
+import from src.animation { animated, ease }
 import from src.notifications { get_notifications }
 import from src.policy { popup_route_active }
 
@@ -20,11 +20,29 @@ def _body(n: dict) -> str { return n["body"]; }
 def _urgency_class(n: dict) -> str { return "notif urgency-" + str(n["urgency"]); }
 def _empty(ns: list) -> bool { return len(ns) == 0; }
 def _key(n: dict) -> any { return n["id"]; }
-def _close(nid: int) { get_notifications().close(nid); }
+def _close(nid: int) { get_notifications().begin_close(nid); }
+
+# Enter on mount (slide down + fade in); exit when the daemon flags the row
+# closing; re-enter if a re-Notify replaces a closing row mid-tween. The
+# effect samples the per-row item each run — cur() in notif_row.
+def _sync_notif_row(item: any, fade: any, slide: any) {
+    if item is None { return; }
+    if item["closing"] {
+        fade.to(0.0, ms=150, ease_fn=ease.in_);
+        slide.to(24.0, ms=200, ease_fn=ease.in_);
+    } elif fade.peek() < 1.0 {
+        fade.to(1.0, ms=200, ease_fn=ease.out);
+        slide.to(0.0, ms=280, ease_fn=ease.out);
+    }
+}
 
 def notif_row(n: dict) -> any {
     cur = row_item();
     nid = n["id"];
+    fade = animated(1.0);                   # instant: no fade-in (latency)
+    slide = animated(24.0);
+    slide.to(0.0, ms=200, ease_fn=ease.out);
+    effect(lambda { _sync_notif_row(cur(), fade, slide); });
     head = Box(orientation="H", class="notif-head", children=[
         Label(class="notif-app", text=cur.map(_app)),
         Button(class="notif-close", label="✕", on_click=lambda { _close(nid); }),
@@ -32,8 +50,8 @@ def notif_row(n: dict) -> any {
     return Box(
         orientation="V",
         class=cur.map(_urgency_class),
-        opacity=enter_tween(0.0, 1.0, ms=200, ease_fn=ease.out),
-        margin_top=enter_tween(24.0, 0.0, ms=280, ease_fn=ease.out),
+        opacity=fade,
+        margin_top=slide,
         children=[
             head,
             Label(class="notif-summary", text=cur.map(_summary)),

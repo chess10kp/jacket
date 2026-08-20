@@ -17,6 +17,7 @@ import from src.adapter {
     list_monitors, monitor_key, connect_monitors_changed
 }
 import from src.glib { idle_add }
+import from src.osp_local { run_graph_inprocess }
 import from src.reactive { set_flush_hook }
 import from src.desktop {
     create_desktop, get_desktop, converge
@@ -112,6 +113,7 @@ def on_activate(app: any) {
 
 
 with entry {
+    run_graph_inprocess();           # detach the SQL store BEFORE any graph op
     install();
     apply_css(CSS);
     set_flush_hook(lambda (f: any) { idle_add(f); });

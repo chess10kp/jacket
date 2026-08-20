@@ -15,9 +15,11 @@ import from src.glib { timeout_add }
 
 # ---------------------------------------------------------------------------
 # Pure reducer over the active-notification list. Each notification:
-#   {id, app_name, summary, body, urgency, expire_ms}
+#   {id, app_name, summary, body, urgency, expire_ms, closing}
 # ---------------------------------------------------------------------------
 # urgency: 0=low 1=normal 2=critical (from hints["urgency"]).
+# closing: True once the row started its exit animation — the UI tweens the
+# bubble out while the daemon waits EXIT_GRACE_MS before real removal.
 def make_notification(id: int, app_name: str, summary: str, body: str,
                       urgency: int, expire_ms: int) -> dict {
     return {
@@ -27,6 +29,7 @@ def make_notification(id: int, app_name: str, summary: str, body: str,
         "body": body,
         "urgency": urgency,
         "expire_ms": expire_ms,
+        "closing": False,
     };
 }
 
@@ -50,6 +53,32 @@ def apply_notify(active: list, notif: dict) -> list {
 # Remove by id (CloseNotification / user dismiss / expiry). New list.
 def dismiss(active: list, id: int) -> list {
     return [n for n in active if n["id"] != id];
+}
+
+# Flag a row as closing (UI plays its exit tween). New list; no-op when the id
+# is missing or already closing. The exit-grace clock lives in the daemon —
+# the reducer stays pure.
+def mark_closing(active: list, id: int) -> list {
+    out: list = [];
+    for n in active {
+        if n["id"] == id and not n["closing"] {
+            c = dict(n);
+            c["closing"] = True;
+            out.append(c);
+        } else {
+            out.append(n);
+        }
+    }
+    return out;
+}
+
+# Is this id currently mid-exit? (Guards the grace timeout: a re-Notify that
+# replaces a closing row un-flags it, so the stale timeout must not remove it.)
+def is_closing(active: list, id: int) -> bool {
+    for n in active {
+        if n["id"] == id { return bool(n["closing"]); }
+    }
+    return False;
 }
 
 # Resolve the effective auto-dismiss delay (ms). Spec: expire_ms == 0 means
@@ -150,6 +179,10 @@ def own_name(on_notify, on_close):
 ::py::
 
 
+# How long a closing row stays in the list so the UI exit tween is seen.
+glob EXIT_GRACE_MS: int = 240;
+
+
 # ---------------------------------------------------------------------------
 # The daemon (singleton). Holds the active list + a monotonic id counter.
 # ---------------------------------------------------------------------------
@@ -175,15 +208,37 @@ obj NotificationDaemon {
         timeout = resolve_timeout(expire, urgency);
         if timeout > 0 {
             timeout_add(timeout, lambda (i: int = nid) {
-                self.close(i);
-                return False;                          # one-shot
+                self.begin_close(i);               # grace first, so rows exit
+                return False;                      # one-shot
             });
         }
         return nid;
     }
 
+    # Immediate removal (bus CloseNotification keeps spec-fast semantics).
     def close(id: int) {
         self.notifications.set(dismiss(self.notifications.peek(), id));
+    }
+
+    # Graceful removal: flag the row closing (UI tweens it out), then remove
+    # after EXIT_GRACE_MS. Idempotent; missing ids no-op.
+    def begin_close(id: int) {
+        active = self.notifications.peek();
+        if is_closing(active, id) { return; }
+        if dismiss(active, id) == active { return; }   # id not in list
+        self.notifications.set(mark_closing(active, id));
+        timeout_add(EXIT_GRACE_MS, lambda (i: int = id) {
+            self._finish_close(i);
+            return False;                          # one-shot
+        });
+    }
+
+    # A re-Notify during the grace window replaces the row with a fresh
+    # (non-closing) dict — the stale timeout must leave it alone.
+    def _finish_close(id: int) {
+        if is_closing(self.notifications.peek(), id) {
+            self.close(id);
+        }
     }
 }
 

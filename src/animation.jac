@@ -8,7 +8,7 @@ import from src.reactive {
     signal, Signal, effect, Reactive, on_scope_cleanup
 }
 import from time { perf_counter }
-import from src.glib { timeout_add, source_remove }
+import from src.glib { timeout_add, source_remove, guard_call }
 
 
 # ===========================================================================
@@ -87,8 +87,16 @@ def _stop_timer_if_idle() {
     }
 }
 
+def _tick_once() { tick(_now()); }
+
 def _on_frame() -> bool {
-    tick(_now());
+    # Guarded: an exception escaping a PyGObject callback destroys the GLib
+    # source silently (dead timers = frozen UI). On error, fail SAFE: reset
+    # the scheduler (drop all tweens, clear the stale source id) — animations
+    # stop but the shell keeps running with correct final values.
+    if not guard_call(_tick_once, "tween tick") {
+        reset_animation_state();
+    }
     return len(active_tweens) > 0;
 }
 
@@ -111,6 +119,7 @@ def unregister_tween(tween_state: dict) {
 
 def tick(now: float) {
     done: list = [];
+    cbs: list = [];
     for tw in active_tweens {
         elapsed_ms = (now - tw["start"]) * 1000.0;
         raw_t = elapsed_ms / tw["ms"];
@@ -118,6 +127,7 @@ def tick(now: float) {
             tw["anim"].display.set(tw["to"]);
             tw["anim"]._tween = None;
             done.append(tw);
+            if tw["on_done"] is not None { cbs.append(tw["on_done"]); }
         } else {
             eased = tw["ease"](raw_t);
             tw["anim"].display.set(_lerp(tw["from"], tw["to"], eased));
@@ -125,6 +135,11 @@ def tick(now: float) {
     }
     for tw in done {
         unregister_tween(tw);
+    }
+    # Completion callbacks run AFTER unregistration, outside the iteration:
+    # a callback may set()/to() (cancelling tweens) or start chained tweens.
+    for cb in cbs {
+        cb();
     }
 }
 
@@ -162,11 +177,17 @@ obj AnimatedSignal {
         self.display.set(v);
     }
 
-    def to(target: any, ms: float = 200.0, ease_fn: any = ease_out) {
+    # on_done fires when the tween reaches `target` (or immediately when the
+    # value is already there). Cancelling — set(), a retargeting to(), scope
+    # disposal — DROPS the callback: the tween never completed, so the exit
+    # it was gating (e.g. a delayed window hide) should not run.
+    def to(target: any, ms: float = 200.0, ease_fn: any = ease_out,
+           on_done: any = None) {
         self._cancel_tween();
         from_val = self.display.peek();
         if from_val == target {
             self.display.set(target);
+            if on_done is not None { on_done(); }
             return;
         }
         tw = {
@@ -176,6 +197,7 @@ obj AnimatedSignal {
             "ms": ms,
             "ease": ease_fn,
             "start": _now(),
+            "on_done": on_done,
         };
         self._tween = tw;
         register_tween(tw);
