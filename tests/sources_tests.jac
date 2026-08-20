@@ -21,7 +21,11 @@ import from src.tray { resolve_item, split_item_key, should_show, pick_icon_name
 import from src.network { parse_nmcli_general_status, parse_nmcli_wifi_list, parse_nmcli_active_connection }
 import from src.bluetooth {
     parse_bluetoothctl_devices, parse_bluetoothctl_show_powered,
-    parse_bluetoothctl_paired, primary_device_from_connected
+    parse_bluetoothctl_paired, primary_device_from_connected,
+    parse_bluetoothctl_show, adapter_id_from_path, parse_adapter_state,
+    public_device_entry, connected_devices_summary, default_adapter_from_list,
+    devices_from_bluetoothctl_lists, attach_devices_to_adapters,
+    state_from_bluetoothctl_raw
 }
 
 
@@ -97,6 +101,111 @@ test "primary_device_from_connected picks first name or alias" {
     assert primary_device_from_connected(devs) == "Headphones";
     no_name = [{"name": "", "address": "AA:BB", "alias": "Fallback"}];
     assert primary_device_from_connected(no_name) == "Fallback";
+}
+
+test "parse_bluetoothctl_show reads adapter radio fields" {
+    txt = "Controller AA:BB:CC:DD:EE:FF (public)\n"
+        + "Name: My PC\n"
+        + "Alias: Desktop\n"
+        + "Powered: yes\n"
+        + "Discovering: no\n"
+        + "Discoverable: yes\n"
+        + "Pairable: yes\n";
+    st = parse_bluetoothctl_show(txt);
+    assert st["powered"] == True;
+    assert st["discoverable"] == True;
+    assert st["pairable"] == True;
+    assert st["discovering"] == False;
+}
+
+test "adapter_id_from_path extracts hci suffix" {
+    assert adapter_id_from_path("/org/bluez/hci0") == "hci0";
+    assert adapter_id_from_path("/org/bluez/hci1/") == "hci1";
+}
+
+test "parse_adapter_state maps BlueZ wire values" {
+    assert parse_adapter_state("on", False) == "enabled";
+    assert parse_adapter_state("off", True) == "disabled";
+    assert parse_adapter_state("off-enabling", False) == "enabling";
+    assert parse_adapter_state(None, True) == "enabled";
+}
+
+test "public_device_entry builds Quickshell-shaped device dict" {
+    props = {
+        "Name": "Life Q20",
+        "Alias": "Headphones",
+        "Address": "88:0E:85:39:E6:9C",
+        "Connected": True,
+        "Paired": True,
+        "Icon": "audio-headset",
+    };
+    dev = public_device_entry(
+        "/org/bluez/hci0/dev_88_0E_85_39_E6_9C", props, 72, "/org/bluez/hci0");
+    assert dev["name"] == "Headphones";
+    assert dev["device_name"] == "Life Q20";
+    assert dev["connected"] == True;
+    assert dev["battery_available"] == True;
+    assert dev["battery"] == 0.72;
+    assert dev["state"] == "connected";
+}
+
+test "connected_devices_summary filters connected only" {
+    devs = [
+        {"name": "A", "address": "AA", "connected": True},
+        {"name": "B", "address": "BB", "connected": False},
+    ];
+    out = connected_devices_summary(devs);
+    assert len(out) == 1;
+    assert out[0]["name"] == "A";
+}
+
+test "default_adapter_from_list prefers explicit path" {
+    adapters = [
+        {"dbus_path": "/org/bluez/hci0", "adapter_id": "hci0"},
+        {"dbus_path": "/org/bluez/hci1", "adapter_id": "hci1"},
+    ];
+    pick = default_adapter_from_list(adapters, "/org/bluez/hci1");
+    assert pick["adapter_id"] == "hci1";
+}
+
+test "devices_from_bluetoothctl_lists marks paired and connected" {
+    all_devs = [{"name": "HP", "address": "AA:BB:CC:DD:EE:FF", "alias": "HP"}];
+    paired = [{"name": "HP", "address": "AA:BB:CC:DD:EE:FF", "alias": "HP"}];
+    connected = paired;
+    devs = devices_from_bluetoothctl_lists(
+        all_devs, paired, connected, "/org/bluez/hci0");
+    assert len(devs) == 1;
+    assert devs[0]["paired"] == True;
+    assert devs[0]["connected"] == True;
+}
+
+test "attach_devices_to_adapters nests device lists" {
+    devices = [
+        {"adapter_path": "/org/bluez/hci0", "name": "HP"},
+        {"adapter_path": "/org/bluez/hci1", "name": "Phone"},
+    ];
+    adapters = [
+        {"dbus_path": "/org/bluez/hci0", "adapter_id": "hci0"},
+        {"dbus_path": "/org/bluez/hci1", "adapter_id": "hci1"},
+    ];
+    out = attach_devices_to_adapters(adapters, devices);
+    assert len(out[0]["devices"]) == 1;
+    assert out[0]["devices"][0]["name"] == "HP";
+    assert len(out[1]["devices"]) == 1;
+}
+
+test "state_from_bluetoothctl_raw builds manager snapshot" {
+    raw = {
+        "show": "Name: Desktop\nPowered: yes\nDiscovering: yes\n",
+        "all": "Device AA:BB:CC:DD:EE:FF Headphones\n",
+        "paired": "Device AA:BB:CC:DD:EE:FF Headphones\n",
+        "connected": "Device AA:BB:CC:DD:EE:FF Headphones\n",
+    };
+    st = state_from_bluetoothctl_raw(raw);
+    assert st["available"] == True;
+    assert len(st["devices"]) == 1;
+    assert st["devices"][0]["connected"] == True;
+    assert st["adapters"][0]["powered"] == True;
 }
 
 

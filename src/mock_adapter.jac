@@ -97,3 +97,13 @@ def install_mock() -> MockAdapter {
     set_adapter(m);
     return m;
 }
+
+def count_kind(ops: list, kind: str) -> int {
+    n = 0;
+    for op in ops { if op[0] == kind { n += 1; } }
+    return n;
+}
+
+def delta_ops(ops: list, start: int) -> list {
+    return ops[start:];
+}

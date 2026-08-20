@@ -1,8 +1,3 @@
-# REFERENCE — stylesheet for the full reference bar (LIBRARY.md §1).
-#
-# style.jac — the shell's default stylesheet (GTK4 CSS), as a Jac string const.
-# Kept out of main so authors can tweak the look in one obvious place.
-glob CSS: str = """
 .bar {
     background: rgba(20, 22, 30, 0.92);
     color: #e6e6e6;
@@ -118,4 +113,3 @@ glob CSS: str = """
     background: rgba(120, 160, 255, 0.25);
 }
 .workspaces button.ws:hover { background: rgba(255, 255, 255, 0.08); }
-""";

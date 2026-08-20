@@ -3,6 +3,8 @@
 # Transport lives in adapter.jac. Graph-native commands route through
 # desktop.handle_graph_command; legacy string getters remain for swaybar compat.
 import from src.desktop { handle_graph_command, get_desktop }
+import from src.launcher { get_launcher }
+import from src.reactive { flush }
 import json;
 
 
@@ -61,7 +63,7 @@ obj IPC {
         }
         if self._use_graph and get_desktop() is not None and len(clean) > 0 {
             cmd = str(clean[0]);
-            if cmd in ["status", "mode", "why", "affected-by", "quit"] {
+            if cmd in ["status", "mode", "why", "affected-by", "quit", "reload"] {
                 r = handle_graph_command(clean);
                 if want_json or cmd in ["status", "why", "affected-by"] {
                     return _format_json(r);
@@ -84,7 +86,19 @@ obj IPC {
             }
             return "ok";
         }
+        if cmd == "launcher" {
+            l = get_launcher();
+            sub = "toggle";
+            if len(clean) > 1 { sub = str(clean[1]); }
+            if sub == "toggle" { l.toggle(); }
+            elif sub == "show" { l.show(); }
+            elif sub == "hide" { l.hide(); }
+            else { return "unknown launcher action: " + sub; }
+            flush();
+            return "ok";
+        }
         if cmd == "quit" {
+            stop_ipc_socket();
             if self._app is not None { self._app.quit(); }
             return "ok";
         }
@@ -100,4 +114,94 @@ glob _ipc: any = None;
 def ipc() -> IPC {
     if _ipc is None { _ipc = IPC(); }
     return _ipc;
+}
+
+
+# ---------------------------------------------------------------------------
+# Fast local IPC: $XDG_RUNTIME_DIR/jacket.sock (scroll keybinds, scripts).
+# Avoids spawning jac (~8s); replies in milliseconds on the GLib main thread.
+# ---------------------------------------------------------------------------
+::py::
+import os
+import socket
+
+_sock_path = None
+_listen_sock = None
+_watch_id = None
+
+
+def _ipc_sock_path():
+    global _sock_path
+    if _sock_path is None:
+        base = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+        _sock_path = os.path.join(base, "jacket.sock")
+    return _sock_path
+
+
+def stop_ipc_socket():
+    global _listen_sock, _watch_id
+    from gi.repository import GLib
+    path = _ipc_sock_path()
+    if _watch_id is not None:
+        GLib.source_remove(_watch_id)
+        _watch_id = None
+    if _listen_sock is not None:
+        try:
+            _listen_sock.close()
+        except Exception:
+            pass
+        _listen_sock = None
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
+def _start_ipc_socket(handler):
+    """handler(argv: list) -> str, on the GLib main thread."""
+    global _listen_sock, _watch_id
+    from gi.repository import GLib
+    path = _ipc_sock_path()
+    try:
+        if os.path.exists(path):
+            os.unlink(path)
+    except OSError:
+        pass
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(path)
+    srv.listen(8)
+    srv.setblocking(False)
+    _listen_sock = srv
+
+    def on_accept(fd, cond):
+        conn, _ = srv.accept()
+        conn.setblocking(True)
+        try:
+            data = conn.recv(65536)
+            if not data:
+                return True
+            line = data.decode("utf-8", errors="replace").strip()
+            parts = line.split() if line else []
+            try:
+                resp = handler(parts)
+            except Exception as e:
+                resp = "error: " + str(e)
+            if resp is None:
+                resp = "ok"
+            conn.sendall((str(resp) + "\n").encode())
+        finally:
+            conn.close()
+        return True
+
+    _watch_id = GLib.io_add_watch(srv.fileno(), GLib.IO_IN, on_accept)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+    return path
+::py::
+
+
+def start_ipc_socket(handler: any) -> str {
+    return _start_ipc_socket(handler);
 }

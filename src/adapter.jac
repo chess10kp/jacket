@@ -305,6 +305,22 @@ def flush_pending_css():
         _apply_css(_pending_css)
         _pending_css = None
 
+def load_css_file(path):
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read()
+    load_css(text)
+    return text
+
+def py_apply_css_file(path):
+    return load_css_file(path)
+
+def py_request_restart():
+    """Re-exec the current process (preserves argv/env for --watch dev mode)."""
+    import os
+    exe = sys.executable
+    argv = list(sys.argv)
+    GLib.idle_add(lambda: (os.execv(exe, [exe] + argv), False)[1])
+
 # --- anchored popovers (Quickshell PopupWindow analogue) -------------------
 # Gtk.Popover anchors to a bar widget; show/hide is driven by hover or click.
 _POS = {
@@ -489,6 +505,7 @@ glob SIGNAL_MAP: dict = {
     "on_toggle": "toggled",
     "on_activate": "activate",
     "on_change": "search-changed",
+    "on_stop_search": "stop-search",
     "on_value_change": "value-changed",
 };
 
@@ -528,6 +545,11 @@ def set_prop(w: any, name: str, value: any) {
     } elif name == "orientation" {
         # settable on Gtk.Box via property
         w.set_orientation(0 if value == "H" else 1);
+    } elif name == "opacity" {
+        if hasattr(w, "set_opacity") { w.set_opacity(float(value)); }
+    } elif name == "margin_top" {
+        if hasattr(w, "set_margin_top") { w.set_margin_top(int(value)); }
+        else { set_margin(w, EDGE_TOP, int(value)); }
     } else {
         w.set_property(name.replace("_", "-"), value);
     }
@@ -598,6 +620,10 @@ def install() {
 # Load an app-level stylesheet (safe before or after Gtk.Application starts;
 # deferred automatically when Gdk.Display.get_default() is still None).
 def apply_css(text: str) { load_css(text); }
+
+def apply_css_file(path: str) { py_apply_css_file(path); }
+
+def request_restart() { py_request_restart(); }
 
 def attach_hover_popover(
     anchor: any,

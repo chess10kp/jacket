@@ -8,8 +8,10 @@
 # (no daemon/socket/display at import), so these run headless.
 import from examples.reference.notif_ui { _app, _summary, _body, _urgency_class, _empty, _key }
 import from examples.reference.launcher_ui {
-    _not_visible, _slot_key, _row_label, _row_hidden, _make_slots
+    _not_visible, _slot_key, _row_label, _row_hidden, _make_slots, _sync_launcher_slide
 }
+import from src.animation { animated, ease, advance_animations, reset_animation_state }
+import from src.reactive { flush }
 
 
 test "notif_ui projections read the notification dict fields" {
@@ -49,4 +51,18 @@ test "launcher_ui: slot pool helpers pad to limit with stable keys" {
     assert _row_label(slots[0]) != "";
     assert _row_hidden(slots[0]) == False;
     assert _row_hidden(slots[2]) == True;
+}
+
+test "launcher_ui: _sync_launcher_slide animates on open, snaps on close" {
+    reset_animation_state();
+    slide = animated(24.0);
+    fade = animated(0.0);
+    _sync_launcher_slide(True, slide, fade);
+    advance_animations(300);
+    flush();
+    assert fade() == 1.0;
+    assert slide() == 0.0;
+    _sync_launcher_slide(False, slide, fade);
+    assert fade() == 0.0;
+    assert slide() == 24.0;
 }

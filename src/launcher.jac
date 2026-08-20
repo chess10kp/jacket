@@ -8,7 +8,7 @@
 #     query : Signal[str]    — the current search text (bound to an Entry)
 #     results: computed via filter_apps(apps, query) in the launcher component.
 import from src.reactive { signal, Signal }
-import from src.glib { run_cmd }
+import from src.glib { spawn_detached }
 
 
 # ---------------------------------------------------------------------------
@@ -107,45 +107,45 @@ def filter_apps(apps: list, query: str, limit: int = 0) -> list {
 
 
 # ---------------------------------------------------------------------------
-# The scan + launch (OS side, not unit-tested here).
+# Scan + launch (OS side, not unit-tested here). Gio respects NoDisplay/Hidden
+# and desktop-entry precedence; AppInfoMonitor rescans on install/uninstall.
 # ---------------------------------------------------------------------------
 ::py::
-import os
+from gi.repository import Gio
 
 
-def _desktop_dirs():
-    dirs = []
-    data_home = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
-    dirs.append(os.path.join(data_home, "applications"))
-    data_dirs = os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share"
-    for d in data_dirs.split(":"):
-        if d:
-            dirs.append(os.path.join(d, "applications"))
-    return dirs
-
-
-def scan_files():
-    """Return [(desktop_filename, text)] across XDG dirs (first-seen wins). The
-    filename is globally unique, so it's the stable For key (Exec can collide)."""
-    seen = set()
+def scan_app_infos():
+    """All launchable desktop apps via Gio. Returns [dict {key, name, exec, icon}]
+    in stable order (sorted by display name)."""
     out = []
-    for d in _desktop_dirs():
-        if not os.path.isdir(d):
-            continue
+    for ai in Gio.app_info_get_all():
         try:
-            names = sorted(os.listdir(d))
+            if not isinstance(ai, Gio.DesktopAppInfo) or not ai.should_show():
+                continue
+            icon = ai.get_icon()
+            iname = icon.to_string() if icon is not None else ""
+            out.append({
+                "key": ai.get_id(),
+                "name": ai.get_display_name() or ai.get_name(),
+                "exec": (ai.get_commandline() or ""),
+                "icon": iname,
+            })
         except Exception:
             continue
-        for name in names:
-            if not name.endswith(".desktop") or name in seen:
-                continue
-            seen.add(name)
-            try:
-                with open(os.path.join(d, name), "r", encoding="utf-8") as f:
-                    out.append((name, f.read()))
-            except Exception:
-                pass
+    out.sort(key=lambda e: e["name"].lower())
     return out
+
+
+def watch_app_infos(cb):
+    Gio.AppInfoMonitor.get().connect("changed", lambda *a: cb())
+
+
+def launch_app_info(key):
+    """Launch by desktop-id. Returns True/False on success/failure, None if missing."""
+    for ai in Gio.app_info_get_all():
+        if ai.get_id() == key:
+            return bool(ai.launch(None, None))
+    return None
 ::py::
 
 
@@ -156,6 +156,7 @@ obj Launcher {
 
     def postinit() {
         self._scan();
+        watch_app_infos(lambda { self._scan(); });
     }
 
     def show() { self.query.set(""); self.visible.set(True); }
@@ -167,20 +168,25 @@ obj Launcher {
 
     def _scan() {
         entries: list = [];
-        for (fname, text) in scan_files() {
-            e = parse_desktop(text);
-            if e is not None {
-                e["key"] = fname;              # unique For key (see scan_files)
-                e["lname"] = e["name"].lower(); # filter hot path (avoid per-keystroke lower)
-                entries.append(e);
-            }
+        for raw in scan_app_infos() {
+            e = {
+                "key": raw["key"],
+                "name": raw["name"],
+                "exec": strip_field_codes(raw["exec"]),
+                "icon": raw["icon"],
+                "lname": raw["name"].lower(),
+            };
+            entries.append(e);
         }
         self.apps.set(entries);
     }
 
-    def launch(exec_: str) {
-        # Detach from the shell: sh -c so the app outlives us.
-        run_cmd(["sh", "-c", exec_ + " &"]);
+    def launch(key: str, exec_: str = "") {
+        ok = launch_app_info(key);
+        if ok is True { return; }
+        if exec_ == "" { return; }
+        # Gio missed or failed — spawn stripped command line as fallback.
+        spawn_detached(["sh", "-c", exec_]);
     }
 }
 

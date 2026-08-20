@@ -26,6 +26,20 @@ def run_cmd(args):
     `spawn` is a reserved Jac walker keyword.)"""
     return _spawn(args)
 
+def spawn_detached(args):
+    """Start args and return immediately. The child gets its own session and
+    stdio to /dev/null: unlike run_cmd, nothing ever waits on it (not even for
+    pipe EOF — a detached `sh -c 'app &'` under run_cmd blocks until app exits
+    because app inherits the capture pipe)."""
+    import subprocess
+    try:
+        subprocess.Popen(args, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+        return 0
+    except Exception as e:
+        return -1
+
 def _spawn(args):
     import subprocess
     try:

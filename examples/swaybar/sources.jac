@@ -5,7 +5,7 @@
 #   countdown  /tmp/timer_start elapsed timer (HH:MM:SS)
 #   stocks     LITE CORZ CRWV BE NOW (Yahoo Finance, 10-min cache in /tmp)
 #   mem        used memory (human), from /proc/meminfo
-#   bluetooth  first connected device name
+#   bluetooth  first connected device name (src.bluetooth)
 # Battery + clock come from the LIBRARY (src.battery, src.sources) — this file
 # only adds what the library doesn't ship. Everything here is CONSUMER code:
 # nothing is added to src/. (See LIBRARY.md §1: examples are consumers.)
@@ -19,13 +19,13 @@ import from src.sources { ticker }
 
 
 # ===========================================================================
-# ::py:: seam — file reads, bluetoothctl, and the threaded stock fetcher.
+# ::py:: seam — file reads and the threaded stock fetcher.
 # (Mirrors the walled-off gi style of battery.jac / audio.jac: system access
 # lives in ::py::, plain callables exposed to Jac. Network stays off the main
 # loop via a daemon thread + GLib.idle_add.)
 # ===========================================================================
 ::py::
-import os, subprocess, threading, time, json
+import os, threading, time, json
 from urllib import request as _urllib_request
 from gi.repository import GLib
 
@@ -36,21 +36,6 @@ def read_text(path):
     try:
         with open(path, "r") as f:
             return f.read()
-    except Exception:
-        return ""
-
-
-def read_bluetooth():
-    """First connected bluetooth device name, or "" (mirrors
-    `bluetoothctl devices Connected | head -1`)."""
-    try:
-        p = subprocess.run(["bluetoothctl", "devices", "Connected"],
-                           capture_output=True, text=True, timeout=2)
-        lines = p.stdout.strip().splitlines()
-        if not lines:
-            return ""
-        parts = lines[0].strip().split(" ", 2)   # "Device <mac> Name"
-        return parts[2] if len(parts) >= 3 else ""
     except Exception:
         return ""
 
@@ -216,25 +201,6 @@ glob _mem: any = None;
 def get_mem() -> Mem {
     if _mem is None { _mem = Mem(); }
     return _mem;
-}
-
-
-obj Bluetooth {
-    has device: Signal = signal("");
-
-    def postinit() {
-        self._refresh();
-        timeout_add(5000, lambda { self._refresh(); return True; });
-    }
-
-    def _refresh() { self.device.set(read_bluetooth()); }
-}
-
-glob _bt: any = None;
-
-def get_bluetooth() -> Bluetooth {
-    if _bt is None { _bt = Bluetooth(); }
-    return _bt;
 }
 
 

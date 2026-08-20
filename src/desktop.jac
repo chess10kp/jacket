@@ -15,6 +15,7 @@ import from src.topology_reactive { dispose_reactive_node }
 import from src.outputs { apply_output_attach, apply_output_detach }
 import from src.graph_query { status_dict, why_dict, affected_by_dict }
 import from src.projection { present_surface_views }
+import from src.adapter { request_restart }
 
 
 glob _session: any = None;
@@ -109,6 +110,10 @@ def handle_graph_command(argv: list) -> dict {
     }
     if cmd == "quit" {
         return {"ok": True, "quit": True};
+    }
+    if cmd == "reload" {
+        request_restart();
+        return {"ok": True, "data": {"reloading": True}};
     }
     return {"ok": False, "error": "unknown command: " + cmd};
 }

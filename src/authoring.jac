@@ -18,5 +18,8 @@ import from src.builders {
     component, Box, Label, Button, Icon, Entry, Slider, Window,
     For, Show, row_item, dispose_tree,
 }
+import from src.animation {
+    animated, follow, enter_tween, ease, advance_animations,
+}
 import from src.mount { mount_tree }
 import from src.osp { ViewNode, Child, Anchored, Dispose, register_edge_realizer }

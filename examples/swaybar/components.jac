@@ -1,15 +1,16 @@
 # swaybar example — widgets built on the jacket library.
 # ---------------------------------------------------------------------------
 # One widget per module of ~/.config/sway/bar. Battery + clock use LIBRARY
-# sources (src.battery, src.sources); countdown / mem / bluetooth / stocks use
+# sources (src.battery, src.bluetooth, src.sources); countdown / mem / stocks use
 # the local sources in examples/swaybar/sources.jac. Gruvbox colours live in
 # style.jac.
 import from time { strftime, localtime }
 import from src.builders { component, Box, Label, Window }
 import from src.sources { ticker }
 import from src.battery { get_battery, battery_icon }
+import from src.bluetooth { get_bluetooth }
 import from examples.swaybar.sources {
-    countdown, get_mem, get_bluetooth, get_stocks, format_stocks
+    countdown, get_mem, get_stocks, format_stocks
 }
 
 
@@ -43,7 +44,7 @@ def MemWidget() -> any {
 @component
 def BluetoothWidget() -> any {
     b = get_bluetooth();
-    dev = b.device;
+    dev = b.primary_device;
     return Label(class="bt",
         text=dev.map(lambda (n: str) { ("" if n == "" else "BT " + n); }),
         hidden=dev.map(lambda (n: str) { n == ""; }));

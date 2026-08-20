@@ -186,6 +186,10 @@ def enter_scope(scope: any) -> any {
 
 def exit_scope(prev: any) { current_scope = prev; }
 
+def on_scope_cleanup(fn: any) {
+    if current_scope { current_scope.on_cleanup(fn); }
+}
+
 
 # ===========================================================================
 # Ergonomic helpers
