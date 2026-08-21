@@ -73,6 +73,20 @@ obj MockAdapter {
         self.ops.append(["disconnect", h.id, hid]);
     }
 
+    def grab_focus(h: any) -> bool {
+        self.ops.append(["grab_focus", h.id]);
+        return True;
+    }
+
+    def attach_hover_popover(anchor: any, content: any, position: str,
+                             show_delay_ms: int, hide_delay_ms: int) -> any {
+        return None;    # headless: no popovers to attach
+    }
+
+    def attach_click_popover(anchor: any, content: any, position: str) -> any {
+        return None;
+    }
+
     # the ordered child tags under a parent handle — for asserting final layout
     def child_tags(parent: any) -> list {
         lst: list[any] = self.kids[parent.id];

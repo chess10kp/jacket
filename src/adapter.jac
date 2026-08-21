@@ -203,8 +203,9 @@ def set_keyboard(w, on):
 def grab_focus(w):
     try:
         w.grab_focus()
+        return True
     except Exception:
-        pass
+        return False
 
 def anchor_bar(w, edge):
     """Anchor a top-level as a bar: pin to left+right and one of top/bottom,
@@ -823,6 +824,7 @@ obj GtkAdapter {
     def child_at(parent: any, i: int) -> any { return child_at(parent, i); }
     def connect(w: any, signal: str, handler: any) -> any { return connect_signal(w, signal, handler); }
     def disconnect(w: any, hid: int) { disconnect_signal(w, hid); }
+    def grab_focus(w: any) -> bool { return bool(grab_focus(w)); }
     def attach_hover_popover(anchor: any, content: any, position: str,
                              show_delay_ms: int, hide_delay_ms: int) -> any {
         return py_attach_hover_popover(anchor, content, position, show_delay_ms, hide_delay_ms);

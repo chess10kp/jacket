@@ -112,7 +112,7 @@ adapter untouched-and-working.
   fonts, :hover). Stylesheet stays byte-identical (`style.jac` untouched).
 - Exit: reference bar's static chrome matches GTK within tolerance.
 
-**W4 — Input**
+**W4 — Input** *(implemented; live launcher round-trip pending compositor smoke)*
 - Pointer: enter/leave/motion/button → map to `clicked`/`pressed`/hover styles
   via hit-testing the laid-out tree. Scroll → slider/value steps.
 - Keyboard: xkbcommon; Entry (SearchEntry semantics: text, placeholder,
@@ -120,6 +120,9 @@ adapter untouched-and-working.
 - Exit: launcher round-trip (open EXCLUSIVE surface, type, filter, Enter
   launches, Esc closes) driven by real compositor input; headless tests inject
   synthetic events through the adapter contract.
+- Status: dispatch core (`hit_test` + `wl_inject_*`) is pure and headless-tested;
+  wl_pointer/wl_keyboard handlers route into it. `grab_focus` added to all three
+  adapters; launcher_ui routes focus/text through `adapter()`.
 
 **W5 — Popups, monitors, lifecycle**
 - Second surface class for popovers (launcher window, notif toasts): own
@@ -157,6 +160,10 @@ Only if the narrow pangocairo slice or GLib itself becomes the next tax:
 | Frame pacing: Python-side repaint on CPU | Damage tracking from W2; benchmark harness exists (`benchmarks/`). Gate: launcher keystroke→paint ≤ GTK numbers ±20%. |
 | Tray SVG icons without GdkPixbuf | Ask SNI for IconPixmap/PNG path first; rsvg gi slice as fallback; gate at W6. |
 | Layer-shell compositor quirks (gtk4-layer-shell papered over these) | W1 targets Hyprland+sway explicitly; quirks list maintained in this doc as found. |
+| No cursor image set over Wl surfaces | Needs wl_cursor theme or wp_cursor_shape_v1; compositor default persists for now. Log at W5 if it bites. |
+| Window layout gives EVERY visible child the full content area (GTK set_child analogue) → overlapping siblings | Hit-test picks the last sibling containing the point; bars must keep ONE root Box. Enforced by convention, not code. |
+| pywayland proxy identity assumed stable across pointer-enter delivery | `_surf_for_wl` falls back to matching wire object ids. |
+| xkb keymap fd is consumed by the handler | `_on_kb_keymap` reads + closes the fd exactly once; compositor sends a fresh one per state change. |
 | Scope creep toward "build a toolkit" | Hard rule: features land on GTK adapter first; WlAdapter chases parity, never new widgets. |
 | Jac/pywayland interop friction (like the gi OverridesProxyModule bug) | All pywayland objects stay inside `::py::` blocks in wl_adapter.jac; only plain callables cross upward — same discipline as adapter.jac Phase-0 finding. |
 
