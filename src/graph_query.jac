@@ -7,8 +7,9 @@
 # These are graph-traversal FUNCTIONS, not spawned walkers: Jac's walker spawn
 # is O(total-graph-nodes), which blows the §5.3 "why < 50ms on 500 nodes" gate.
 # Queries are read-only introspection; the typed results + real edge traversal
-# keep them graph-native. The control-plane ReconcileTopology remains a walker
-# (it only runs on small per-output subgraphs).
+# keep them graph-native. The control-plane topology reconciliation is also a
+# plain function (`reconcile_topology()` in src/policy.jac) for the same
+# spawn-cost reason — it only touches small per-output subgraphs.
 #
 #   why binding:X        source -Feeds-> RouteNode -Feeds-> BindingNode
 #                        + ModeNode -Suppresses-> RoutePolicy (owning mode id)

@@ -113,8 +113,21 @@ def suppression_owners(session: DesktopSession, route_name: str) -> list[str] {
     return owners;
 }
 
+# One pass over modes -> set of suppressed route names. Equivalent to calling
+# suppression_owners per route, but pays the session_modes/Suppresses edge
+# scans once instead of once per route (hot in mode transitions).
+def _suppressed_route_names(session: DesktopSession) -> set[str] {
+    suppressed: set[str] = set();
+    for m in session_modes(session) {
+        for sp in [m ->:Suppresses:->] {
+            suppressed.add(sp.route_name);
+        }
+    }
+    return suppressed;
+}
+
 def route_is_active(session: DesktopSession, route_name: str) -> bool {
-    return len(suppression_owners(session, route_name)) == 0;
+    return route_name not in _suppressed_route_names(session);
 }
 
 
@@ -199,7 +212,13 @@ def exit_mode(session: DesktopSession, name: str) -> bool {
 # Deterministic; Change 6 attributes provenance via real Override edges.
 # ---------------------------------------------------------------------------
 def desired_surface_kind(session: DesktopSession, connector: str, role: str) -> str {
-    if "presentation" in mode_names(session) and role == "projector" {
+    return _desired_surface_kind_from(mode_names(session), role);
+}
+
+# Names-hoisted core so a reconcile pass resolves mode names ONCE for all
+# outputs instead of re-scanning SessionMode edges per output.
+def _desired_surface_kind_from(names: list[str], role: str) -> str {
+    if "presentation" in names and role == "projector" {
         return "minimal-bar";
     }
     return "full-bar";
@@ -213,10 +232,11 @@ def desired_surface_kind(session: DesktopSession, connector: str, role: str) -> 
 # ---------------------------------------------------------------------------
 def _sync_routes(session: DesktopSession) {
     st = policy_state();
+    suppressed = _suppressed_route_names(session);
     for rp in session_route_policies(session) {
         rn = route_node_for_policy(rp);
         if rn is None { continue; }
-        active = route_is_active(session, rp.route_name);
+        active = rp.route_name not in suppressed;
         rn.active = active;
         if active {
             connect_feeds(st.notif_source, rn);
@@ -241,8 +261,8 @@ def _sync_routes(session: DesktopSession) {
 # O(total-graph-nodes), which blows the §5.3 mode-convergence gate on realistic
 # session sizes even when only two outputs reconcile.
 # ---------------------------------------------------------------------------
-def _reconcile_output(session: DesktopSession, out: OutputNode) {
-    want = desired_surface_kind(session, out.connector, out.role);
+def _reconcile_output(session: DesktopSession, out: OutputNode, names: list[str]) {
+    want = _desired_surface_kind_from(names, out.role);
     cur = current_surface(out);
     if cur is not None and cur.kind == want {
         # Surface may exist without a view if reconcile ran before builders registered.
@@ -266,12 +286,13 @@ def _reconcile_output(session: DesktopSession, out: OutputNode) {
 
 def reconcile_topology(session: DesktopSession) {
     trace_adapter("reconcile");
+    names = mode_names(session);   # resolve once for all outputs
     # One flush at batch end — avoid a mid-reconcile Propagate spawn from
     # popup_projection.set() while route Feeds edges are still being rewired.
     batch(lambda {
         _sync_routes(session);
         for out in session_outputs(session) {
-            _reconcile_output(session, out);
+            _reconcile_output(session, out, names);
         }
     });
 }

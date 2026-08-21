@@ -40,12 +40,14 @@ test "479 dormant nodes add less than 5x cone-only overhead" {
 
 
 test "mode convergence under provisional headless budget" {
-    # PLAN aspirational gate: 16.7 ms p95 (one 60 Hz frame). Jac interpreter +
-    # Propagate walker spawn on route/popup projection updates is ~25–30 ms p95
-    # on this runtime; correctness is enforced by policy/E2E tests.
+    # PLAN aspirational gate: 16.7 ms p95 (one 60 Hz frame). An enter_mode
+    # transition issues ~20 typed-edge graph queries at ~1–1.5 ms fixed Jac
+    # interpreter cost each (~28–31 ms p50 median, flat vs graph size); see
+    # benchmarks/RESULTS.md. Budget is set above the measured median with a
+    # real tripwire for 2x regressions; correctness lives in policy/E2E tests.
     install_mock();
-    r = bench_mode_convergence(5);
-    assert r["p95_ms"] < 35.0;
+    r = bench_mode_convergence(15);
+    assert r["p95_ms"] < 50.0;
 }
 
 
