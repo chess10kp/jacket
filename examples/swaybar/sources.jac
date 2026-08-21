@@ -10,24 +10,24 @@
 # only adds what the library doesn't ship. Everything here is CONSUMER code:
 # nothing is added to src/. (See LIBRARY.md §1: examples are consumers.)
 #
-# Network (stocks) runs on a worker thread and marshals back via GLib.idle_add
-# so the GTK main loop never blocks on a fetch. The /tmp cache format matches
-# the shell script byte-for-byte, so the two can share caches.
+# Network (stocks) runs on a worker thread and marshals back via the GLib idle
+# shim (src.glib.idle_add) so the GTK main loop never blocks on a fetch. The
+# /tmp cache format matches the shell script byte-for-byte, so the two can
+# share caches.
 import from src.reactive { signal, Signal }
-import from src.glib { timeout_add }
+import from src.glib { timeout_add, idle_add }
 import from src.sources { ticker }
 
 
 # ===========================================================================
 # ::py:: seam — file reads and the threaded stock fetcher.
-# (Mirrors the walled-off gi style of battery.jac / audio.jac: system access
+# (Mirrors the walled-off style of battery.jac / audio.jac: system access
 # lives in ::py::, plain callables exposed to Jac. Network stays off the main
-# loop via a daemon thread + GLib.idle_add.)
+# loop via a daemon thread + the src.glib idle shim.)
 # ===========================================================================
 ::py::
 import os, threading, time, json
 from urllib import request as _urllib_request
-from gi.repository import GLib
 
 _STOCK_CACHE_DIR = "/tmp"
 
@@ -82,7 +82,8 @@ def _fetch_one(ticker):
 
 def spawn_stock_fetch(tickers, on_done):
     """Fetch every ticker off-thread, refresh caches, then call on_done(dict)
-    ON the GLib main loop. Safe to call from Jac."""
+    ON the GLib main loop. Safe to call from Jac. (idle_add is src.glib's shim,
+    imported at the Jac level — same pattern as tray.jac's py_make_texture.)"""
     def work():
         out = {}
         now = int(time.time())
@@ -100,7 +101,7 @@ def spawn_stock_fetch(tickers, on_done):
                 if c is not None:
                     out[t] = c
         try:
-            GLib.idle_add(lambda: (on_done(out), False)[1])
+            idle_add(lambda: (on_done(out), False)[1])
         except Exception:
             pass
     threading.Thread(target=work, daemon=True).start()

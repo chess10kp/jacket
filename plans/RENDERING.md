@@ -151,6 +151,9 @@ Reopen and choose an adapter track when **any** of:
 
 Spike scope if revisiting:
 
+> **Status: revisited 2026-08-21 — see `plans/WAYLAND_BACKEND.md`** for the
+> full extraction + Wayland-client backend plan (milestones W0–W6).
+
 1. Keep GTK adapter working.
 2. Implement bar-sized subset only (`Window`, `Box`, `Label`, margins, layer-shell).
 3. Prove on `examples/reference/main.jac` behind the same adapter contract.

@@ -21,90 +21,7 @@ import from src.tray { get_tray }
 import from src.desktop { get_desktop }
 import from src.policy { active_modes, toggle_mode }
 import from src.projection { present_surface_views }
-
-
-# ===========================================================================
-# ::py:: seam — the ONE GTK-direct spot in components: a right-click gesture +
-# a Gtk.PopoverMenu built from the tray's parsed dbusmenu tree. The adapter's
-# event map has no right-click channel and the builders expose no popover, so
-# this talks to the live Gtk.Button widget directly (mirrors the walled-off
-# gi style of adapter.jac / tray.jac). Only `attach_tray_menu` crosses to Jac.
-# ===========================================================================
-::py::
-import gi
-try:
-    gi.require_version("Gtk", "4.0")
-    from gi.repository import Gtk, Gio, GLib
-except Exception:
-    Gtk = None
-    Gio = None
-    GLib = None
-
-
-def _build_menu_model(node, group, key, fire_cb):
-    """Parsed dbusmenu tree -> (Gio.Menu, actions installed on `group`). Visible
-    non-separator leaves become MenuItems bound to a "traymenu.i<id>" action whose
-    activate fires the dbusmenu Event; separators flush a section; children recurse
-    into submenus. Disabled entries get a disabled action (greyed, unclickable)."""
-    menu = Gio.Menu()
-    section = Gio.Menu()
-    for child in node.get("children", []):
-        if not child.get("visible", True):
-            continue
-        if child.get("separator"):
-            if section.get_n_items() > 0:
-                menu.append_section(None, section)
-                section = Gio.Menu()
-            continue
-        label = child.get("label") or ""
-        if child.get("children"):
-            submodel = _build_menu_model(child, group, key, fire_cb)
-            section.append_submenu(label, submodel)
-            continue
-        act = "i%d" % int(child["id"])
-        section.append_item(Gio.MenuItem.new(label, "traymenu." + act))
-        action = Gio.SimpleAction.new(act, None)
-        action.set_enabled(bool(child.get("enabled", True)))
-
-        def _on_activate(a, p, _id=int(child["id"])):
-            try:
-                fire_cb(key, _id)
-            except Exception:
-                pass
-        action.connect("activate", _on_activate)
-        group.add_action(action)
-    if section.get_n_items() > 0:
-        menu.append_section(None, section)
-    return menu
-
-
-def attach_tray_menu(widget, key, fetch_cb, fire_cb):
-    """Wire a right-button GestureClick on `widget`; on press, fetch_cb(key) yields
-    the parsed dbusmenu tree, which we turn into a PopoverMenu anchored to the
-    button. No-op headless (gi import failed) or when the item ships no menu."""
-    if widget is None or Gtk is None:
-        return
-
-    def _on_pressed(gesture, n_press, x, y):
-        try:
-            tree = fetch_cb(key)
-        except Exception:
-            tree = None
-        if not tree or not tree.get("children"):
-            return
-        group = Gio.SimpleActionGroup()
-        model = _build_menu_model(tree, group, key, fire_cb)
-        pop = Gtk.PopoverMenu.new_from_model(model)
-        pop.insert_action_group("traymenu", group)
-        pop.set_parent(widget)
-        pop.connect("closed", lambda p: p.unparent())
-        pop.popup()
-
-    gesture = Gtk.GestureClick.new()
-    gesture.set_button(3)          # 3 = BUTTON_SECONDARY (right click)
-    gesture.connect("pressed", _on_pressed)
-    widget.add_controller(gesture)
-::py::
+import from src.adapter { attach_tray_menu }
 
 
 # Clock — pure derivation off a source, no local state. Proves the leaf-patch
@@ -265,9 +182,8 @@ def tray_row(it: dict) -> any {
     btn = Button(class="tray-item", child=lbl,
         tooltip=cur.map(_tray_tip),
         on_click=lambda { _tray_activate(key); });
-    # Right-click: attach a GestureClick to the live GTK button; on press it
-    # fetches the dbusmenu tree and pops up a PopoverMenu. Direct-to-widget wiring
-    # (the adapter/builders expose no right-click channel or popover primitive).
+    # Right-click: the adapter wires a GestureClick on the live button; on press
+    # it fetches the dbusmenu tree and pops up a PopoverMenu anchored to it.
     attach_tray_menu(btn.widget, key, _tray_fetch_menu, _tray_fire);
     return btn;
 }

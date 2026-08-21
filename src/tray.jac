@@ -104,17 +104,11 @@ def parse_menu_layout(item: any) -> dict {
 # + ARGB pixmap decode. Names below are callable from Jac.
 # ===========================================================================
 ::py::
+# No bare `import gi` here: src.adapter is imported first (above) and does the
+# require_version bootstrap, so the sanctioned Gio/GLib transport slice below
+# binds cleanly.
 import os
-import gi
 from gi.repository import Gio, GLib
-
-try:
-    gi.require_version("GdkPixbuf", "2.0")
-    gi.require_version("Gdk", "4.0")
-    from gi.repository import GdkPixbuf, Gdk
-except Exception:
-    GdkPixbuf = None
-    Gdk = None
 
 _WATCHER_NAME = "org.kde.StatusNotifierWatcher"
 _WATCHER_PATH = "/StatusNotifierWatcher"
@@ -156,11 +150,14 @@ _state = {
 }
 
 
-# --- ARGB (network byte order) -> Gdk paintable -----------------------------
-def _pixmap_to_texture(pixmaps):
+# --- ARGB (network byte order) -> RGBA pixels + texture ---------------------
+# The byte work stays here (pure, headless-testable); the texture creation
+# lives behind the adapter seam (adapter.py_make_texture) so no gi tokens
+# appear above it. Returns None when the backend can't make textures.
+def _largest_argb_as_rgba(pixmaps):
     """SNI IconPixmap is a(iiay): (width, height, ARGB32-big-endian bytes). Take
-    the largest, swap ARGB->RGBA, hand back a Gdk.Texture (or None)."""
-    if not pixmaps or GdkPixbuf is None or Gdk is None:
+    the largest frame, swap ARGB->RGBA, return (w, h, rgba_bytes) or None."""
+    if not pixmaps:
         return None
     try:
         best = max(pixmaps, key=lambda p: p[0] * p[1])
@@ -171,10 +168,21 @@ def _pixmap_to_texture(pixmaps):
         for i in range(0, w * h * 4, 4):
             a, r, g, b = data[i], data[i+1], data[i+2], data[i+3]
             out[i], out[i+1], out[i+2], out[i+3] = r, g, b, a
-        pb = GdkPixbuf.Pixbuf.new_from_bytes(
-            GLib.Bytes.new(bytes(out)), GdkPixbuf.Colorspace.RGB, True, 8,
-            w, h, w * 4)
-        return Gdk.Texture.new_for_pixbuf(pb)
+        return (w, h, bytes(out))
+    except Exception:
+        return None
+
+
+def _pixmap_to_texture(pixmaps):
+    packed = _largest_argb_as_rgba(pixmaps)
+    if packed is None:
+        return None
+    # Lazy, dynamic import: the texture factory lives in the ACTIVE backend
+    # module; tray must stay importable (returning None) without any backend.
+    try:
+        import importlib
+        mod = importlib.import_module("src.adapter")
+        return mod.py_make_texture(*packed)
     except Exception:
         return None
 

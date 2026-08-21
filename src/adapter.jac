@@ -57,7 +57,8 @@ except ImportError:
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gtk4LayerShell", "1.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gtk, GLib, Gdk, Gtk4LayerShell, GObject, Gio
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import Gtk, GLib, Gdk, GdkPixbuf, Gtk4LayerShell, GObject, Gio
 
 def gtk_init():
     Gtk.init()
@@ -100,19 +101,33 @@ EDGE_RIGHT  = Gtk4LayerShell.Edge.RIGHT
 def set_anchor(w, edge, val):  Gtk4LayerShell.set_anchor(w, edge, val)
 def set_margin(w, edge, val):  Gtk4LayerShell.set_margin(w, edge, val)
 
+def _is_layer_window(w) -> bool:
+    """True when w is a Gtk.Window that gtk4-layer-shell adopted (init_layer
+    succeeded). Routes margin_* between layer margins and widget margins."""
+    try:
+        return bool(Gtk4LayerShell.is_layer_window(w));
+    except Exception:
+        return False;
+
 def anchor_corner(w, corner):
-    """Pin a popup to a screen corner (e.g. "top-right") with a small margin,
-    sized to its content. No exclusive zone. No-op off layer-shell."""
+    """Pin a popup to a screen corner or edge-center ("top-right",
+    "top-center"), sized to its content. exclusive_zone = -1 (swaybar's
+    overlay-mode trick): the compositor NEVER moves it for other surfaces'
+    reserved space — layer compositors seat popups explicitly via layer
+    margins instead of relying on a lower layer's exclusive zone.
+    No-op off layer-shell."""
     vmap = {"top": EDGE_TOP, "bottom": EDGE_BOTTOM}
     hmap = {"left": EDGE_LEFT, "right": EDGE_RIGHT}
     try:
         parts = corner.split("-")
         v = vmap.get(parts[0], EDGE_TOP)
-        h = hmap.get(parts[1], EDGE_RIGHT)
         Gtk4LayerShell.set_anchor(w, v, True)
-        Gtk4LayerShell.set_anchor(w, h, True)
-        Gtk4LayerShell.set_margin(w, v, 44)          # clear the bar
-        Gtk4LayerShell.set_margin(w, h, 12)
+        Gtk4LayerShell.set_margin(w, v, 44)          # clear the bar (default)
+        if len(parts) > 1 and parts[1] in hmap:
+            h = hmap[parts[1]]
+            Gtk4LayerShell.set_anchor(w, h, True)
+            Gtk4LayerShell.set_margin(w, h, 12)
+        Gtk4LayerShell.set_exclusive_zone(w, -1)
     except Exception:
         pass
 
@@ -314,6 +329,20 @@ def load_css_file(path):
 def py_apply_css_file(path):
     return load_css_file(path)
 
+# --- raw-pixel paintables (tray IconPixmap fallback), walled here so no module
+# above the seam touches Gdk/GdkPixbuf. Takes (w, h, RGBA bytes); returns a
+# Gdk.Texture or None when Gdk is unavailable (headless / future wl backend).
+def py_make_texture(w, h, rgba):
+    if Gdk is None:
+        return None
+    try:
+        pb = GdkPixbuf.Pixbuf.new_from_bytes(
+            GLib.Bytes.new(bytes(rgba)), GdkPixbuf.Colorspace.RGB, True, 8,
+            w, h, w * 4)
+        return Gdk.Texture.new_for_pixbuf(pb)
+    except Exception:
+        return None
+
 def py_request_restart():
     """Re-exec the current process (preserves argv/env for --watch dev mode)."""
     import os
@@ -454,6 +483,97 @@ def py_attach_click_popover(anchor_widget, content_widget, position="bottom"):
             pass
 
     return cleanup
+
+# --- tray dbusmenu popover (the reference bar's right-click item menu) ------
+# Menu construction + attachment live here so nothing above the seam touches
+# Gtk/Gio widget APIs. build_menu_model turns a parsed dbusmenu tree into a
+# (Gio.Menu, action group) pair; attach_popover wraps it in a PopoverMenu;
+# py_attach_tray_menu wires the BUTTON_SECONDARY GestureClick that drives both.
+def _build_menu_model(node, group, key, fire_cb):
+    """Parsed dbusmenu tree -> (Gio.Menu, actions installed on `group`). Visible
+    non-separator leaves become MenuItems bound to a "traymenu.i<id>" action whose
+    activate fires the dbusmenu Event; separators flush a section; children recurse
+    into submenus. Disabled entries get a disabled action (greyed, unclickable)."""
+    menu = Gio.Menu()
+    section = Gio.Menu()
+    for child in node.get("children", []):
+        if not child.get("visible", True):
+            continue
+        if child.get("separator"):
+            if section.get_n_items() > 0:
+                menu.append_section(None, section)
+                section = Gio.Menu()
+            continue
+        label = child.get("label") or ""
+        if child.get("children"):
+            submodel = _build_menu_model(child, group, key, fire_cb)
+            section.append_submenu(label, submodel)
+            continue
+        act = "i%d" % int(child["id"])
+        section.append_item(Gio.MenuItem.new(label, "traymenu." + act))
+        action = Gio.SimpleAction.new(act, None)
+        action.set_enabled(bool(child.get("enabled", True)))
+
+        def _on_activate(a, p, _id=int(child["id"])):
+            try:
+                fire_cb(key, _id)
+            except Exception:
+                pass
+        action.connect("activate", _on_activate)
+        group.add_action(action)
+    if section.get_n_items() > 0:
+        menu.append_section(None, section)
+    return menu
+
+
+def build_menu_model(node, key, fire_cb):
+    """Parsed dbusmenu tree -> (Gio.Menu, SimpleActionGroup), or None when gi is
+    unavailable (headless / future wl backend) or the tree has no children."""
+    if Gtk is None or node is None or not node.get("children"):
+        return None
+    group = Gio.SimpleActionGroup()
+    return (_build_menu_model(node, group, key, fire_cb), group)
+
+
+def attach_popover(anchor_widget, model, group):
+    """Wrap `model` in a PopoverMenu parented to anchor_widget and pop it up.
+    The group is installed as "traymenu" so the model's actions resolve; the
+    popover unparents itself on close. No-op headless or with no model."""
+    if anchor_widget is None or model is None:
+        return
+    try:
+        pop = Gtk.PopoverMenu.new_from_model(model)
+        pop.insert_action_group("traymenu", group)
+        pop.set_parent(anchor_widget)
+        pop.connect("closed", lambda p: p.unparent())
+        pop.popup()
+    except Exception:
+        pass
+
+
+def py_attach_tray_menu(widget, key, fetch_cb, fire_cb):
+    """Wire a right-button GestureClick on `widget`; on press, fetch_cb(key)
+    yields the parsed dbusmenu tree, which becomes a PopoverMenu anchored to
+    the button. No-op headless or when the widget isn't a live GTK handle."""
+    if widget is None or Gtk is None:
+        return
+
+    def _on_pressed(gesture, n_press, x, y):
+        try:
+            tree = fetch_cb(key)
+        except Exception:
+            tree = None
+        if not tree or not tree.get("children"):
+            return
+        built = build_menu_model(tree, key, fire_cb)
+        if built is None:
+            return
+        attach_popover(widget, built[0], built[1])
+
+    gesture = Gtk.GestureClick.new()
+    gesture.set_button(3)          # 3 = BUTTON_SECONDARY (right click)
+    gesture.connect("pressed", _on_pressed)
+    widget.add_controller(gesture)
 ::py::
 
 
@@ -548,17 +668,19 @@ def set_prop(w: any, name: str, value: any) {
     } elif name == "opacity" {
         if hasattr(w, "set_opacity") { w.set_opacity(float(value)); }
     } elif name == "margin_top" {
-        if hasattr(w, "set_margin_top") { w.set_margin_top(int(value)); }
-        else { set_margin(w, EDGE_TOP, int(value)); }
+        # Layer-shell windows position their SURFACE via layer margins; every
+        # other widget uses the GTK margin (space INSIDE its parent window).
+        if _is_layer_window(w) { set_margin(w, EDGE_TOP, int(value)); }
+        else { w.set_margin_top(int(value)); }
     } elif name == "margin_bottom" {
-        if hasattr(w, "set_margin_bottom") { w.set_margin_bottom(int(value)); }
-        else { set_margin(w, EDGE_BOTTOM, int(value)); }
+        if _is_layer_window(w) { set_margin(w, EDGE_BOTTOM, int(value)); }
+        else { w.set_margin_bottom(int(value)); }
     } elif name == "margin_start" {
-        if hasattr(w, "set_margin_start") { w.set_margin_start(int(value)); }
-        else { set_margin(w, EDGE_LEFT, int(value)); }
+        if _is_layer_window(w) { set_margin(w, EDGE_LEFT, int(value)); }
+        else { w.set_margin_start(int(value)); }
     } elif name == "margin_end" {
-        if hasattr(w, "set_margin_end") { w.set_margin_end(int(value)); }
-        else { set_margin(w, EDGE_RIGHT, int(value)); }
+        if _is_layer_window(w) { set_margin(w, EDGE_RIGHT, int(value)); }
+        else { w.set_margin_end(int(value)); }
     } else {
         w.set_property(name.replace("_", "-"), value);
     }
@@ -632,6 +754,10 @@ def apply_css(text: str) { load_css(text); }
 
 def apply_css_file(path: str) { py_apply_css_file(path); }
 
+def make_texture(w: int, h: int, rgba: bytes) -> any {
+    return py_make_texture(w, h, rgba);
+}
+
 def request_restart() { py_request_restart(); }
 
 def attach_hover_popover(
@@ -646,6 +772,10 @@ def attach_hover_popover(
 
 def attach_click_popover(anchor: any, content: any, position: str = "bottom") -> any {
     return py_attach_click_popover(anchor, content, position);
+}
+
+def attach_tray_menu(anchor: any, key: str, fetch_cb: any, fire_cb: any) -> any {
+    return py_attach_tray_menu(anchor, key, fetch_cb, fire_cb);
 }
 
 def run(build_roots: any, app_id: str) -> any {
@@ -693,4 +823,11 @@ obj GtkAdapter {
     def child_at(parent: any, i: int) -> any { return child_at(parent, i); }
     def connect(w: any, signal: str, handler: any) -> any { return connect_signal(w, signal, handler); }
     def disconnect(w: any, hid: int) { disconnect_signal(w, hid); }
+    def attach_hover_popover(anchor: any, content: any, position: str,
+                             show_delay_ms: int, hide_delay_ms: int) -> any {
+        return py_attach_hover_popover(anchor, content, position, show_delay_ms, hide_delay_ms);
+    }
+    def attach_click_popover(anchor: any, content: any, position: str) -> any {
+        return py_attach_click_popover(anchor, content, position);
+    }
 }
