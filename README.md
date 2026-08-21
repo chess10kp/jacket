@@ -4,6 +4,14 @@ A **library for building Wayland desktop shells in Jac** — reactive engine, OS
 graph, declarative builders, GTK4 adapter, and optional service sources. See
 **[LIBRARY.md](LIBRARY.md)** for the public API contract.
 
+## Documentation
+
+- [Getting started](docs/getting-started.md) — prerequisites, first bar in 10 minutes
+- [Guide](docs/guide.md) — components, reactivity, lists, windows, animation, IPC, testing
+- [Graph runtime](docs/graph-runtime.md) — OSP-native runtime internals: Propagate walker, policy graph, queries
+- [CLI reference](docs/cli.md) — `jacket` / `jacket-ctl`, config dirs, watch mode
+- [Library API](LIBRARY.md) — full public contract
+
 The full reference bar (multi-monitor, launcher, notifications, tray) lives in
 `examples/reference/` — one consumer of the library, not the product. For a
 minimal starting point, see `examples/minimal/main.jac` or LIBRARY.md §2.
@@ -20,8 +28,8 @@ minimal starting point, see `examples/minimal/main.jac` or LIBRARY.md §2.
 | 5 | Real widgets (notifications, MPRIS, tray, launcher) | ✅ done |
 | 6 | Multi-monitor bars + StatusNotifier tray + packaging | ✅ done |
 
-Phases 0–5 are complete and proven: all modules pass `jac check`, **69 tests
-pass**, and the reactive→adapter→GTK path was verified against the live Wayland
+Phases 0–6 are complete and proven: all modules pass `jac check`, **212 tests
+pass** (23 suites; see `tests/`), and the reactive→adapter→GTK path was verified against the live Wayland
 session — the leaf-patch (a `Gtk.Label` over 5 ticks), the per-monitor bar build
 (one bar per connected output, keyed by connector), and the full tray row
 lifecycle (register → in-place `NewIcon` update → unregister) via widget-tree
@@ -61,6 +69,7 @@ sources (DBus/Gio, Hypr IPC, sysfs) ──writes──▶ Signals
 | `src/adapter_api.jac` | swappable adapter handle (holder-obj + `adapter()` accessor) |
 | `src/adapter.jac` | the PyGObject seam (`::py::` gi shim + the adapter contract) |
 | `src/mock_adapter.jac` | recording adapter for headless reconciler tests |
+| `src/transition.jac` | `popup_transition` enter/exit tweens + delayed window hide |
 | `src/builders.jac` | Box/Label/Button/Icon/Window, prop rule, `For`, `Show`, `@component` |
 | `src/glib.jac` | GLib main-loop helpers (idle/timeout/run_for) |
 | `src/sources.jac` | plain imperative sources feeding Signals (clock ticker) |
@@ -85,11 +94,10 @@ sources (DBus/Gio, Hypr IPC, sysfs) ──writes──▶ Signals
 ## Run
 
 ```bash
-./run.sh                                    # full reference bar (default)
+./run.sh                                    # your bar (~/.config/jacket/default/; auto-inits)
+./run.sh examples/reference/main.jac        # in-repo reference bar (library dev)
 ./run.sh examples/minimal/main.jac          # minimal bootstrap
-jac test tests/reactive_tests.jac tests/builders_tests.jac tests/sources_tests.jac \
-         tests/adapter_tests.jac tests/components_tests.jac tests/ui_helpers_tests.jac \
-         tests/osp_walker_tests.jac tests/ipc_tests.jac   # 69 tests
+jac test tests/   # full suite (23 suites)
 ```
 
 **Multi-monitor:** `examples/reference/main.jac` enumerates `Gdk.Display` monitors at activate and
