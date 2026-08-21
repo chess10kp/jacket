@@ -667,6 +667,8 @@ Each milestone report must include:
 - reactive list virtualization and LIS move minimization;
 - replacement of declarative leaf widget builders with direct OSP authoring;
 - performance claims not backed by a committed reproducible workload.
+- native/Cairo/drawin adapter replacement — see `plans/RENDERING.md` for rationale
+  and revisit criteria; GTK remains the active stack until an explicit spike.
 
 ---
 
