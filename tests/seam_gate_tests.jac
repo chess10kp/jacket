@@ -43,10 +43,13 @@ _SEAMS = ("jacket/adapter.jac", "jacket/wl_adapter.jac")   # both backend seams 
 _LOOP_SHIM = "jacket/glib.jac"
 _SOURCE_MODULES = frozenset({
     "adapter.jac", "glib.jac", "battery.jac", "bluetooth.jac",
-    "brightness.jac", "dev_watch.jac", "hyprland.jac", "ipc.jac",
-    "launcher.jac", "mpris.jac", "network.jac", "notifications.jac",
-    "power_profiles.jac", "sway.jac", "tray.jac",
+    "brightness.jac", "busname.jac", "dev_watch.jac", "hyprland.jac", "ipc.jac",
+    "launcher.jac", "lockscreen.jac", "mpris.jac", "network.jac",
+    "notifications.jac", "power_profiles.jac", "sway.jac", "tray.jac",
 })
+# busname.jac: pure D-Bus name ownership (Gio transport only).
+# lockscreen.jac: GLib main-loop scheduling for the PAM auth path; DEBT —
+#   it hand-rolls idle_add instead of going through the jacket.glib shim.
 
 # The W0-DEBT ledger is paid down: every originally recorded entry landed behind
 # the adapter seam (tray textures -> py_make_texture, the tray popover menu ->
