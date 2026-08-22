@@ -12,7 +12,9 @@ if _cfg and _cfg not in sys.path:
     sys.path.insert(0, _cfg)
 ::py::
 import os;
-import from src.adapter {
+# Backend shim: picks wl (Wayland) or gtk (fallback) via JACKET_RENDERER,
+# defaulting to auto — wl whenever a Wayland compositor is reachable.
+import from src.backend {
     install, run_with_ipc, apply_css_file, request_restart,
     list_monitors, monitor_key, connect_monitors_changed
 }

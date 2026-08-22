@@ -177,8 +177,19 @@ def _pixmap_to_texture(pixmaps):
     packed = _largest_argb_as_rgba(pixmaps)
     if packed is None:
         return None
-    # Lazy, dynamic import: the texture factory lives in the ACTIVE backend
-    # module; tray must stay importable (returning None) without any backend.
+    # The texture factory lives in the ACTIVE backend: ask the installed
+    # adapter first (WlAdapter/GtkAdapter both expose py_make_texture), then
+    # fall back to the GTK module for legacy import order. Tray must stay
+    # importable (returning None) without any backend.
+    try:
+        from src.adapter_api import adapter
+        a = adapter()
+        if a is not None and hasattr(a, "py_make_texture"):
+            tex = a.py_make_texture(*packed)
+            if tex is not None:
+                return tex
+    except Exception:
+        pass
     try:
         import importlib
         mod = importlib.import_module("src.adapter")

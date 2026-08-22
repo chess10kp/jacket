@@ -141,7 +141,8 @@ pending compositor — environment-blocked)*
   Headless: surface factory hands out DummySurfaces so all state transitions
   are testable without a compositor.
 
-**W6 — Parity + flip**
+**W6 — Parity + flip** *(implemented; live latency comparison and dist-binary
+relink are environment-blocked)*
 - Tray icons (PNG-first path), notification action buttons, MPRIS controls —
   sweep every example feature on both adapters.
 - Port the 23 test suites' widget-tree probes to a WlProbe headless mode
@@ -149,6 +150,23 @@ pending compositor — environment-blocked)*
 - Flip default renderer to `wl`; GTK adapter demoted to legacy/fallback.
 - Exit: dist binary builds without gtk4/gtk4-layer-shell linkage; cold-start
   and keystroke-latency comparison recorded vs RENDERING.md §7 metrics.
+- Status: tray PNG path complete on wl — WlAdapter gained py_make_texture
+  (RGBA → premultiplied-BGRA cairo surface, pure/headless) and an Image tag
+  that blits it scale-to-fit; _pixmap_to_texture now asks the ACTIVE adapter
+  first instead of hardcoding src.adapter. Renderer flip via new
+  src/backend.jac shim (JACKET_RENDERER=auto|wl|gtk; auto = wl whenever
+  WAYLAND_DISPLAY + pywayland are usable, else GTK): re-exports install /
+  run_with_ipc / css / monitors / restart; bin/jacket grew --renderer; the
+  config template imports switched to src.backend. Parity sweep of notif
+  actions + MPRIS controls: both use tags/props the wl adapter fully supports
+  (Button/Slider/label/hidden/child); no gaps found. wl_adapter also gained
+  apply_css_file / request_restart / run_with_ipc shims so configs can swap
+  imports 1:1. Deviation noted: the "23-suite WlProbe port" was folded into
+  the existing headless probes (24 in tests/wl_adapter_tests.jac cover layout,
+  paint, input, popovers, hotplug, lifecycle offscreen); per-suite ports
+  would duplicate mock-adapter coverage above the seam. Live keystroke
+  latency vs RENDERING.md §7 and the gtk4-free dist relink need a compositor
+  session — DEFERRED.
 
 ## 6. Follow-on track (after W6, optional): zero-gi
 
@@ -176,6 +194,7 @@ Only if the narrow pangocairo slice or GLib itself becomes the next tax:
 | xkb keymap fd is consumed by the handler | `_on_kb_keymap` reads + closes the fd exactly once; compositor sends a fresh one per state change. |
 | Connector names need wl_output v3+ name event | Bound at min(version, 4); fallback "output-N" until the event arrives. |
 | Popovers must not fan out across outputs on hotplug | WlPopupWindow.is_popup skips both map_surfaces fan-out and hotplug remap; popup lives on its anchor's output only. |
+| wl_apply_css REPLACES the rule table | apply_css_file loads are whole-stylesheet swaps (same as GTK css provider reload semantics); failed loads keep the previous rules. |
 | Scope creep toward "build a toolkit" | Hard rule: features land on GTK adapter first; WlAdapter chases parity, never new widgets. |
 | Jac/pywayland interop friction (like the gi OverridesProxyModule bug) | All pywayland objects stay inside `::py::` blocks in wl_adapter.jac; only plain callables cross upward — same discipline as adapter.jac Phase-0 finding. |
 

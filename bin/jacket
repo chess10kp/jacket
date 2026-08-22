@@ -65,7 +65,7 @@ def _config_dir_empty_or_missing(dir_path: str) -> bool:
     return len(os.listdir(dir_path)) == 0
 
 
-def cmd_run(name: str, watch: bool, extra: list[str]) -> int:
+def cmd_run(name: str, watch: bool, extra: list[str], renderer: str | None = None) -> int:
     cfg = resolve_config(name)
     if not os.path.isfile(cfg["shell"]):
         if _config_dir_empty_or_missing(cfg["dir"]):
@@ -87,6 +87,8 @@ def cmd_run(name: str, watch: bool, extra: list[str]) -> int:
     env["JACKET_CONFIG_NAME"] = name
     if watch:
         env["JACKET_WATCH"] = "1"
+    if renderer:
+        env["JACKET_RENDERER"] = renderer
     cmd = ["jac", "run", cfg["shell"], *extra]
     return subprocess.call(cmd, cwd=ROOT, env=env)
 
@@ -118,6 +120,12 @@ def main() -> int:
         action="store_true",
         help="dev mode: hot CSS + restart on .jac save",
     )
+    p_run.add_argument(
+        "--renderer",
+        default=None,
+        choices=["auto", "wl", "gtk"],
+        help="windowing backend (default: auto — wl on Wayland, gtk fallback)",
+    )
     p_run.add_argument("extra", nargs=argparse.REMAINDER)
 
     args = parser.parse_args()
@@ -128,7 +136,7 @@ def main() -> int:
         extra = args.extra
         if extra and extra[0] == "--":
             extra = extra[1:]
-        return cmd_run(args.config, args.watch, extra)
+        return cmd_run(args.config, args.watch, extra, args.renderer)
 
     # Bare `jacket` → run default config.
     return cmd_run("default", False, [])

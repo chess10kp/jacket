@@ -1311,6 +1311,14 @@ def natural_size(node):
         w, h = 140 + pl + pr, 20 + pt + pb
     elif node.tag == "Icon":
         w, h = 16 + pl + pr, 16 + pt + pb
+    elif node.tag == "Image":
+        tex = node.props.get("texture")
+        tw = th = 0
+        if tex is not None and hasattr(tex, "get_width"):
+            tw, th = int(tex.get_width()), int(tex.get_height())
+        elif isinstance(tex, tuple):
+            tw, th = int(tex[0]), int(tex[1])      # (w, h, rgba) raw form
+        w, h = max(1, tw) + pl + pr, max(1, th) + pt + pb
     else:
         # containers: stack children per orientation
         vert = str(node.cprops.get("orientation") or "H").upper().startswith("V")
@@ -1496,6 +1504,26 @@ def _paint(cr, node):
         cr.set_line_width(1.5)
         cr.stroke()
         cr.restore()
+    elif node.tag == "Image":
+        tex = node.props.get("texture")
+        if tex is not None and hasattr(tex, "get_width"):
+            tw, th = int(tex.get_width()), int(tex.get_height())
+            if tw > 0 and th > 0:
+                # scale-to-fit inside the content box (padding-aware),
+                # centered — mirrors Gtk.Image scaling without gi.
+                avail_w = max(1.0, w - _pad(st, "pad_l") - _pad(st, "pad_r"))
+                avail_h = max(1.0, h - _pad(st, "pad_t") - _pad(st, "pad_b"))
+                scale = min(avail_w / tw, avail_h / th)
+                dw, dh = tw * scale, th * scale
+                dx = x + _pad(st, "pad_l") + (avail_w - dw) / 2
+                dy = y + _pad(st, "pad_t") + (avail_h - dh) / 2
+                cr.save()
+                cr.translate(dx, dy)
+                cr.scale(scale, scale)
+                cr.set_source_surface(tex, 0, 0)
+                cr.rectangle(0, 0, tw, th)
+                cr.fill()
+                cr.restore()
 
     for c in node.children:
         _paint(cr, c)
@@ -1510,7 +1538,10 @@ _CONSTRUCT_ONLY = {
     "Slider": {"orientation", "min", "max", "step"},
 }
 
-_TAGS = {"Box", "Label", "Button", "Icon", "Entry", "Slider", "Window"}
+_TAGS = {"Box", "Label", "Button", "Icon", "Entry", "Slider", "Window",
+         "Image"}
+
+_CONSTRUCT_ONLY["Image"] = {"texture"}
 
 _SAME = ("text", "label")
 
@@ -1661,6 +1692,74 @@ def install_wl_backend():
     set_adapter(WlAdapter())
 
 
+def wl_apply_css_file(path):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            wl_apply_css(f.read())
+        return True
+    except Exception:
+        return False
+
+
+def wl_request_restart():
+    """Re-exec the current process (mirrors adapter.py_request_restart;
+    preserves argv/env for --watch dev mode)."""
+    import os
+    exe = _sys.executable
+    argv = list(_sys.argv)
+    _after(0, lambda: (os.execv(exe, [exe] + argv), False)[1])
+
+
+def _after(ms, fn):
+    """Run fn after ms on the loop when live; immediately when headless."""
+    loop_running = _loop.get("loop") is not None and _GLib is not None
+    if loop_running:
+        _GLib.timeout_add(max(1, int(ms)), lambda: (fn(), False)[1])
+    else:
+        fn()
+
+
+def wl_run_with_ipc(on_activate, on_request, app_id):
+    """Parity shim for adapter.run_with_ipc. Single-instance + request
+    routing ride the existing unix-socket IPC (start_ipc_socket, owned by the
+    app config); this just activates and pumps the GLib loop."""
+    wl_run(on_activate)
+
+
+def wl_make_texture(w, h, rgba):
+    """PNG/pixmap pixels -> cairo ARGB32 surface. The wl paint path is pure
+    cairo, so the 'texture' IS the drawable — no Gdk.Texture analogue needed.
+    Accepts row-major RGBA bytes (w*h*4); returns None on bad input."""
+    w = max(0, int(w))
+    h = max(0, int(h))
+    if w == 0 or h == 0:
+        return None
+    data = bytes(rgba)
+    if len(data) != w * h * 4:
+        return None
+    # cairo ARGB32 is native-endian premultiplied BGRA; on the little-endian
+    # targets we run (x86_64/aarch64) RGBA bytes map to packed uint32 as
+    # 0xAABBGGRR — so swap R and B per pixel and premultiply.
+    dst = bytearray(w * h * 4)
+    for i in range(0, len(data), 4):
+        r, g, b, a = data[i], data[i + 1], data[i + 2], data[i + 3]
+        dst[i] = (b * a + 127) // 255
+        dst[i + 1] = (g * a + 127) // 255
+        dst[i + 2] = (r * a + 127) // 255
+        dst[i + 3] = a
+    try:
+        import ctypes
+        stride = _cairo.ImageSurface.format_stride_for_width(
+            _cairo.FORMAT_ARGB32, w)
+        buf = (ctypes.c_ubyte * len(dst)).from_buffer(dst)
+        # pycairo holds a reference to buf, so it stays alive with the surface
+        return _cairo.ImageSurface.create_for_data(
+            buf, _cairo.FORMAT_ARGB32, w, h, stride)
+    except Exception:
+        return None
+    set_adapter(WlAdapter())
+
+
 # --- headless render probes (tests/wl_adapter_tests.jac) --------------------
 def offscreen_surface(w, h):
     return _cairo.ImageSurface(_cairo.FORMAT_ARGB32, w, h)
@@ -1693,6 +1792,9 @@ obj WlAdapter {
     def attach_click_popover(anchor: any, content: any, position: str) -> any {
         return wl_attach_click_popover(anchor, content, position);
     }
+    def py_make_texture(w: int, h: int, rgba: bytes) -> any {
+        return wl_make_texture(w, h, rgba);
+    }
 }
 
 
@@ -1718,3 +1820,11 @@ def run_dynamic(on_activate: any, app_id: str, non_unique: bool = False) -> any 
 }
 
 def quit() { wl_quit(); }
+
+def make_texture(w: int, h: int, rgba: bytes) -> any {
+    return wl_make_texture(w, h, rgba);
+}
+
+def request_restart() { wl_request_restart(); }
+
+def apply_css_file(path: str) { wl_apply_css_file(path); }

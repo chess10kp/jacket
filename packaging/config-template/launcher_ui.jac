@@ -11,7 +11,7 @@ import from src.reactive { computed, effect }
 import from src.animation { animated, ease }
 import from src.builders { component, Box, Button, Entry, Window, For, row_item }
 import from src.launcher { get_launcher, filter_apps }
-import from src.adapter { grab_focus, set_prop }
+import from src.adapter_api { adapter }
 import from src.glib { idle_add }
 
 # 8 rows keeps the popup well under output height. 30 rows measured 1284px
@@ -97,8 +97,8 @@ def _focus_entry(entry_node: any) {
         # Reset the text the user typed last time (show() resets the query
         # Signal; this clears the Gtk.SearchEntry itself — set_text fires
         # on_change -> query.set("") again, a harmless no-op).
-        set_prop(w, "text", "");
-        idle_add(lambda { grab_focus(w); return False; });
+        adapter().set_prop(w, "text", "");
+        idle_add(lambda { adapter().grab_focus(w); return False; });
     }
 }
 

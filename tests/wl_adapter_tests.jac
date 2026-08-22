@@ -312,6 +312,7 @@ import from src.wl_adapter {
     popover_geometry, wl_attach_click_popover, wl_attach_hover_popover,
     wl_list_monitors, wl_monitor_key, wl_connect_monitors_changed,
     _remove_output, _monitors_changed, _popovers, _conn,
+    wl_make_texture, wl_apply_css_file, natural_size_full,
 }
 
 def _fake_out() -> any {
@@ -510,4 +511,110 @@ test "window lifecycle: set_visible(False) unmaps surfaces, True remaps" {
     a.set_prop(win, "hidden", False);
     assert len(win.surfaces) == 1;
     _remove_output(o1);
+}
+
+# ===========================================================================
+# W6 — parity: tray PNG textures on wl, Image tag, css-file load, backend
+# selection. All headless.
+# ===========================================================================
+import from src.tray { _pixmap_to_texture }
+import from src.backend {
+    backend_name, reset_backend_cache,
+}
+import from src.wl_adapter { _glob_styles }
+
+::py::
+import os as _os
+
+def _set_env(key, val):
+    if val is None:
+        _os.environ.pop(key, None)
+    else:
+        _os.environ[key] = val
+
+def _write_file(path, text):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+def _remove_file(path):
+    try:
+        _os.remove(path)
+        return True
+    except OSError:
+        return False
+::py::
+
+test "wl_make_texture returns premultiplied BGRA cairo surface" {
+    tex: any = wl_make_texture(2, 1, bytes([255, 0, 0, 255,   0, 255, 0, 128]));
+    assert tex is not None;
+    assert tex.get_width() == 2 and tex.get_height() == 1;
+    buf = tex.get_data();
+    # red pixel: B=0 G=0 R=255 A=255 -> premultiplied stays (b,g,r,a)
+    assert buf[0] == 0 and buf[1] == 0 and buf[2] == 255 and buf[3] == 255;
+    # green pixel at half alpha: r=0 g=128(premult) b=0 a=128
+    assert buf[4] == 0 and buf[5] == 128 and buf[6] == 0 and buf[7] == 128;
+
+    assert wl_make_texture(4, 4, b"short") is None;      # wrong byte count
+    assert wl_make_texture(0, 5, b"") is None;           # zero dim
+}
+
+test "Image tag sizes and paints from a texture" {
+    set_adapter(WlAdapter());
+    a = adapter();
+    win = a.construct("Window", {"height": 32});
+    img = a.construct("Image", {"texture": wl_make_texture(16, 16, b"\x40" * (16 * 16 * 4))});
+    box = a.construct("Box", {"orientation": "H"});
+    a.insert(box, img, 0);
+    a.insert(win, box, 0);
+    ns = natural_size_full(img);
+    assert ns[0] >= 16 and ns[1] >= 16;                  # texture-driven
+    surf = offscreen_surface(64, 64);
+    paint_tree(offscreen_context(surf), win, 64, 64);    # must not raise
+    assert a.is_construct_only("Image", "texture") == True;
+
+    bad = a.construct("Image", {});
+    nb = natural_size_full(bad);                          # no texture: min size
+    assert nb[0] >= 1 and nb[1] >= 1;
+}
+
+test "wl_apply_css_file loads a stylesheet from disk" {
+    path = "tests/_w6_tmp_theme.css";
+    _write_file(path, ".tray-icon { padding: 3px; }");
+    assert len(_glob_styles["rules"]) >= 0;
+    assert wl_apply_css_file(path) == True;
+    # apply_css REPLACES the rule table with the new stylesheet's rules
+    assert len(_glob_styles["rules"]) >= 1;
+    assert wl_apply_css_file("tests/_does_not_exist.css") == False;
+    assert len(_glob_styles["rules"]) >= 1;               # old rules survive a failed load
+    _remove_file(path);
+}
+
+test "tray pixmap routes through the active adapter's texture factory" {
+    set_adapter(WlAdapter());                             # active backend = wl
+    # SNI format: list of (w, h, ARGB big-endian). Two frames, largest wins.
+    pixmaps = [(1, 1, bytes([255, 10, 20, 30])),
+               (2, 1, bytes([255, 255, 0, 0,  255, 0, 255, 0]))];
+    tex = _pixmap_to_texture(pixmaps);
+    assert tex is not None;
+    assert tex.get_width() == 2;                          # picked the larger frame
+    assert _pixmap_to_texture([]) is None;
+    assert _pixmap_to_texture([(2, 2, b"tiny")]) is None;  # malformed data
+}
+
+def _renderer_for(val: str) -> str {
+    _set_env("JACKET_RENDERER", val);
+    _set_env("WAYLAND_DISPLAY", None);
+    reset_backend_cache();
+    name = str(backend_name());
+    reset_backend_cache();                                # don't leak memo
+    _set_env("JACKET_RENDERER", None);
+    return name;
+}
+
+test "backend selection matrix: explicit picks + auto fallback to gtk headless" {
+    import from src.adapter_api { set_adapter }
+    set_adapter(WlAdapter());                             # restore afterwards
+    assert _renderer_for("gtk") == "src.adapter";
+    assert _renderer_for("wl") == "src.wl_adapter";
+    assert _renderer_for("auto") == "src.adapter";         # no WAYLAND_DISPLAY
 }
