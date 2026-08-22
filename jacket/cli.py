@@ -1,5 +1,9 @@
-#!/usr/bin/env python3
-"""jacket — launch and control the user bar config."""
+"""jacket — launch and control the user bar config.
+
+Console entry point (see [entrypoints.scripts] in jac.toml). All
+resources resolve through the package — nothing here may depend on the
+location of a checkout (epic #1 invariant).
+"""
 from __future__ import annotations
 
 import argparse
@@ -7,10 +11,9 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TEMPLATE = os.path.join(ROOT, "packaging", "config-template")
-CTL = os.path.join(ROOT, "bin", "jacket-ctl")
+TEMPLATE = Path(__file__).resolve().parent / "config_template"
 IPC_COMMANDS = frozenset(
     {
         "status",
@@ -48,13 +51,17 @@ def cmd_init(name: str) -> int:
         print(f"already exists: {cfg['dir']}", file=sys.stderr)
         return 1
     os.makedirs(cfg["dir"], exist_ok=True)
-    if not os.path.isdir(TEMPLATE):
+    if not TEMPLATE.is_dir():
         print(f"missing template: {TEMPLATE}", file=sys.stderr)
         return 1
-    for fname in os.listdir(TEMPLATE):
-        src = os.path.join(TEMPLATE, fname)
-        if os.path.isfile(src):
-            shutil.copy2(src, os.path.join(cfg["dir"], fname))
+    for fname in sorted(os.listdir(TEMPLATE)):
+        src = TEMPLATE / fname
+        if not src.is_file():
+            continue
+        # Templates ship as *.jac.tmpl so the wheel builder never tries to
+        # transpile them; strip the suffix when scaffolding a real config.
+        target = fname[: -len(".tmpl")] if fname.endswith(".jac.tmpl") else fname
+        shutil.copy2(src, os.path.join(cfg["dir"], target))
     print(f"created {cfg['dir']}")
     return 0
 
@@ -82,7 +89,6 @@ def cmd_run(name: str, watch: bool, extra: list[str], renderer: str | None = Non
             )
             return 1
     env = os.environ.copy()
-    env["JACKET_ROOT"] = ROOT
     env["JACKET_CONFIG_DIR"] = cfg["dir"]
     env["JACKET_CONFIG_NAME"] = name
     if watch:
@@ -90,14 +96,13 @@ def cmd_run(name: str, watch: bool, extra: list[str], renderer: str | None = Non
     if renderer:
         env["JACKET_RENDERER"] = renderer
     cmd = ["jac", "run", cfg["shell"], *extra]
-    return subprocess.call(cmd, cwd=ROOT, env=env)
+    return subprocess.call(cmd, env=env)
 
 
 def _delegate_ctl(argv: list[str]) -> int:
-    if not os.path.isfile(CTL):
-        print(f"missing {CTL}", file=sys.stderr)
-        return 1
-    return subprocess.call([CTL, *argv])
+    from jacket import ctl
+
+    return ctl.main(list(argv))
 
 
 def main() -> int:

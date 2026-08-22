@@ -1,5 +1,11 @@
-#!/usr/bin/env python3
-"""Send a command to the running jacket bar (fast Unix socket, GApplication fallback)."""
+"""jacket-ctl — send a command to the running jacket bar.
+
+Fast Unix-socket path with a GApplication fallback so the desktop shell
+can also route requests. Console entry point (see
+[entrypoints.scripts] in jac.toml).
+"""
+from __future__ import annotations
+
 import os
 import socket
 import sys
@@ -47,7 +53,7 @@ def _via_gio(argv: list[str]) -> int:
         if cmd.get_is_remote():
             return 0
         print(
-            "jacket bar is not running (start with ./run.sh)",
+            "jacket bar is not running (start with: jacket run)",
             file=sys.stderr,
         )
         return 1
@@ -56,8 +62,9 @@ def _via_gio(argv: list[str]) -> int:
     return app.run(["jacket-ctl", *argv])
 
 
-def main() -> int:
-    argv = sys.argv[1:]
+def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
     if not argv:
         print("usage: jacket-ctl <command> [args...]", file=sys.stderr)
         return 2

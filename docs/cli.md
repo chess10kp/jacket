@@ -24,8 +24,9 @@ Extra args after the command are passed through to the entry.
   theme.css        # GTK4 CSS
 ```
 
-`JACKET_CONFIG_DIR` / `JACKET_CONFIG_NAME` override resolution (see
-`jacket/config.jac`).
+`JACKET_CONFIG_DIR` / `JACKET_CONFIG_NAME` are exported to the shell
+process by `jacket run` (informational); resolution itself follows
+`XDG_CONFIG_HOME` (see `jacket/config.jac`).
 
 ### Watch mode
 
