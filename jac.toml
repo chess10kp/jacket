@@ -8,9 +8,11 @@ authors = [{ name = "chess10kp" }]
 classifiers = [
     "Environment :: Wayland",
     "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Jac",
     "Topic :: Desktop Environment",
 ]
+license = "MIT"
 entry = "examples/reference/main.jac"
 
 [run]

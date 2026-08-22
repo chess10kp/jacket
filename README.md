@@ -158,3 +158,7 @@ If gtk4-layer-shell warns about link order, set
   order; `any > any` is a type error (route comparisons through a `::py::` helper).
 - gi's `OverridesProxyModule` breaks under Jac attribute access — bootstrap gi in
   `::py::`, expose plain callables; widget **instances** are usable directly.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
