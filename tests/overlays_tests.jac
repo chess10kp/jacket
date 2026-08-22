@@ -1,11 +1,11 @@
 # overlays_tests.jac — Anchored-edge overlay graph (mock adapter).
-import from jacket.osp { Child, Anchored }
+import from jacket.osp { Child, Anchored, ViewNode }
 import from jacket.mock_adapter { install_mock }
 import from jacket.builders { Button, Label, Box, Window, component }
 import from jacket.overlays { anchored_panels, anchored_edges }
 
 
-def _panel() -> any {
+def _panel() -> ViewNode {
     return Box(class="panel", children=[Label(text="panel")]);
 }
 

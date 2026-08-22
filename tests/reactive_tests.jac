@@ -99,7 +99,7 @@ test "operator overloads derive reactively" {
 # --- .map / when / fmt combinators ----------------------------------------
 test "map when fmt combinators" {
     vol = signal(0.25);
-    pct = vol.map(lambda (v) { f"{v:.0%}"; });
+    pct = vol.map(lambda (v: any) { f"{v:.0%}"; });
     assert pct() == "25%";
     muted = signal(False);
     cls = when(muted, "vol muted", "vol");

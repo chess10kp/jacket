@@ -189,9 +189,9 @@ test "attach_devices_to_adapters nests device lists" {
         {"dbus_path": "/org/bluez/hci1", "adapter_id": "hci1"},
     ];
     out = attach_devices_to_adapters(adapters, devices);
-    assert len(out[0]["devices"]) == 1;
+    assert len(out[0]["devices"] as list) == 1;
     assert out[0]["devices"][0]["name"] == "HP";
-    assert len(out[1]["devices"]) == 1;
+    assert len(out[1]["devices"] as list) == 1;
 }
 
 test "state_from_bluetoothctl_raw builds manager snapshot" {
@@ -865,7 +865,7 @@ test "parse_menu_layout marks separators and recurses into submenus" {
     assert kids[1]["separator"] == True;            # type == "separator"
     assert kids[1]["type"] == "separator";
     assert kids[2]["label"] == "Sub";
-    assert len(kids[2]["children"]) == 1;
+    assert len(kids[2]["children"] as list) == 1;
     assert kids[2]["children"][0]["id"] == 4;
     assert kids[2]["children"][0]["label"] == "Deep";
 }

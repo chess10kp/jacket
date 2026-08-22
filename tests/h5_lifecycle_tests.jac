@@ -57,13 +57,13 @@ test "100 presentation mode cycles remount without duplicates" {
         enter_mode(s, "presentation");
         st = status_dict(s);
         assert len(st["outputs"]) == 2;
-        for o in st["outputs"] {
-            assert len(o["surfaces"]) == 1;
+        for o in st["outputs"] as list {
+            assert len(o["surfaces"] as list) == 1;
         }
         exit_mode(s, "presentation");
         st2 = status_dict(s);
-        for o in st2["outputs"] {
-            assert len(o["surfaces"]) == 1;
+        for o in st2["outputs"] as list {
+            assert len(o["surfaces"] as list) == 1;
             assert o["surfaces"][0]["kind"] == "full-bar";
         }
     }

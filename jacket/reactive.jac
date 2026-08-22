@@ -10,7 +10,8 @@
 # ===========================================================================
 
 import from jacket.topology_reactive {
-    create_source, create_derived, create_binding, read_reactive, peek,
+    create_source, create_derived, create_binding, read_reactive,
+    peek as graph_peek,
     source_set, dispose_owned, batch as topo_batch, flush, set_flush_hook
 }
 
@@ -41,8 +42,8 @@ obj Reactive {
     }
 
     # untracked read — the supported signal.value replacement (PLAN §4)
-    def peek() -> any { return peek(self.node); }
-    def _peek() -> any { return peek(self.node); }
+    def peek() -> any { return graph_peek(self.node); }
+    def _peek() -> any { return graph_peek(self.node); }
 
     def map(fn: any) -> any { return computed(lambda { fn(self()); }); }
 
@@ -72,8 +73,10 @@ def _scope_reactive_owner() -> any {
     s = current_scope;
     if s is None { return None; }
     if not hasattr(s, "reactive_anchor") { return None; }
-    if s.reactive_anchor is None {
-        s.reactive_anchor = create_source(None);
+    anchor = getattr(s, "reactive_anchor", None);
+    if anchor is None {
+        anchor = create_source(None);
+        setattr(s, "reactive_anchor", anchor);
         # Graph-native collective disposal: one cleanup walks the anchor's Owns
         # subtree and tears every scoped reactive node down (dispose_owned clears
         # Feeds + pops closures). ViewNode/Scope both run cleanups on dispose.

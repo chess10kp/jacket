@@ -10,7 +10,7 @@ import from jacket.mock_adapter { install_mock }
 test "cone propagation runs tail binding once per update" {
     w = build_500_node_cone();
     tail = w["tail"];
-    before = tail.runs;
+    before = tail.runs as int;
     source_set(w["source"], 7);
     flush();
     assert tail.runs == before + 1;

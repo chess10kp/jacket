@@ -139,24 +139,27 @@ def install_base_policies(session: DesktopSession) {
     bp = BasePolicy(runtime_id=next_runtime_id("policy"), name="reference-base");
     session +>:SessionPolicy:+> bp;
 
-    st.notif_source = create_source(0);
-    session +>:SessionSource:+> st.notif_source;     # session-owned -> disposed on reset
+    notif_src = create_source(0);
+    st.notif_source = notif_src;
+    session +>:SessionSource:+> notif_src;     # session-owned -> disposed on reset
 
     st.history_route = _make_route(session, bp, ROUTE_NOTIF_HISTORY);
-    st.history_binding = create_binding(lambda {
+    history_bind = create_binding(lambda {
         read(st.history_route);
         st.history_count += 1;
         trace_adapter("history_write");
     });
-    session +>:SessionBinding:+> st.history_binding;
+    st.history_binding = history_bind;
+    session +>:SessionBinding:+> history_bind;
 
     st.popup_route = _make_route(session, bp, ROUTE_NOTIF_POPUP);
-    st.popup_binding = create_binding(lambda {
+    popup_bind = create_binding(lambda {
         read(st.popup_route);
         st.popup_runs += 1;
         trace_adapter("popup_write");
     });
-    session +>:SessionBinding:+> st.popup_binding;
+    st.popup_binding = popup_bind;
+    session +>:SessionBinding:+> popup_bind;
 
     # Establish route Feeds edges immediately so a notification before the first
     # output attach still propagates. _sync_routes remains the sole owner of

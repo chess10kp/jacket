@@ -2,6 +2,15 @@
 name = "jacket"
 version = "0.1.0"
 description = "A Wayland desktop shell (bar/panels/notifications/launcher) written in Jac over GTK4 via PyGObject."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "chess10kp" }]
+classifiers = [
+    "Environment :: Wayland",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Jac",
+    "Topic :: Desktop Environment",
+]
 entry = "examples/reference/main.jac"
 
 [run]

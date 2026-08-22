@@ -3,7 +3,7 @@ import from jacket.runtime_graph { reset_session_store, session_store }
 import from jacket.topology_reactive {
     create_source, create_derived, create_binding, read, source_set,
     route_connect, route_disconnect, propagate_from, dispose_owned,
-    feed_sources, reset_engine_state, CLEAN, DIRTY
+    feed_sources, reset_engine_state, CLEAN, DIRTY, SourceNode
 }
 
 
@@ -86,13 +86,14 @@ test "100 independent roots isolation" {
     for i in range(100) {
         roots.append(_make_chain(i));
     }
-    target = roots[50];
-    source_set(target["src"], 999);
-    for (j, item) in enumerate(roots) {
+    target = roots[50] as dict;
+    source_set(target["src"] as SourceNode, 999);
+    for (j, raw_item) in enumerate(roots as list) {
+        item = raw_item as dict;
         if j == 50 {
-            assert item["acc"][0] == 999;
+            assert (item["acc"] as list)[0] == 999;
         } else {
-            assert item["acc"][0] == j;
+            assert (item["acc"] as list)[0] == j;
         }
     }
 }

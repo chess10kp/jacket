@@ -157,7 +157,7 @@ def stop_ipc_socket():
         pass
 
 
-def _start_ipc_socket(handler):
+def _start_ipc_socket(handler: any) -> str:
     """handler(argv: list) -> str, on the GLib main thread."""
     global _listen_sock, _watch_id
     from gi.repository import GLib
@@ -203,5 +203,5 @@ def _start_ipc_socket(handler):
 
 
 def start_ipc_socket(handler: any) -> str {
-    return _start_ipc_socket(handler);
+    return _start_ipc_socket(handler) as str;
 }

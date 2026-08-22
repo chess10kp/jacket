@@ -731,7 +731,7 @@ obj Bluetooth {
     }
 
     def _default_adapter_path() -> str {
-        da = self.default_adapter.get();
+        da = self.default_adapter.peek();
         return str(da.get("dbus_path", ""));
     }
 
@@ -740,7 +740,7 @@ obj Bluetooth {
         if key == "" { return ""; }
         if key.startswith("/") { return key; }
         upper = key.upper();
-        for d in self.devices.get() {
+        for d in self.devices.peek() {
             if str(d.get("address", "")).upper() == upper {
                 return str(d.get("dbus_path", ""));
             }
@@ -849,7 +849,7 @@ obj Bluetooth {
         addr = str(path_or_address);
         if path != "" {
             adapter_path = "";
-            for d in self.devices.get() {
+            for d in self.devices.peek() {
                 if str(d.get("dbus_path", "")) == path {
                     adapter_path = str(d.get("adapter_path", ""));
                     break;

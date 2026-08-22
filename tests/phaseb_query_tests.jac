@@ -22,7 +22,7 @@ test "why query traces source route binding path with stable ids" {
     assert w["active"] is True;
     kinds = [p["kind"] for p in w["path"]];
     assert kinds == ["source", "route", "binding"];
-    for p in w["path"] {
+    for p in w["path"] as list {
         assert p["runtime_id"] != "";
     }
     ps = policy_state();
@@ -52,9 +52,9 @@ test "affected-by returns route paths with binding ids" {
     assert ROUTE_NOTIF_HISTORY in a["bindings"];
     assert ROUTE_NOTIF_POPUP in a["bindings"];
     assert len(a["routes"]) == 2;
-    for entry in a["routes"] {
+    for entry in a["routes"] as list {
         assert entry["runtime_id"] != "";
-        assert len(entry["bindings"]) == 1;
+        assert len(entry["bindings"] as list) == 1;
     }
     # presentation suppresses popup feed but history remains
     enter_mode(s, "presentation");
@@ -98,7 +98,7 @@ test "ipc routes graph commands by default" {
     mode_out = ipc().handle(["mode", "enter", "presentation", "--json"]);
     mode_data = json.loads(mode_out);
     assert mode_data["ok"] is True;
-    assert "presentation" in mode_data["data"]["modes"];
+    assert "presentation" in (mode_data["data"]["modes"] as list);
     bad = ipc().handle(["bogus"]);
     assert bad == "unknown command: bogus";
 }
