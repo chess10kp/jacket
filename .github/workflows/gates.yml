@@ -1,0 +1,32 @@
+name: packaging gates
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  hard-removals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No `from src.` / `import src` anywhere outside .attic
+        run: |
+          if grep -rnE 'from src[.]|import src\b' \
+              --include='*.jac' --include='*.py' --include='*.sh' --include='*.md' \
+              --exclude-dir=.attic --exclude-dir=.git .; then
+            echo "::error::src.* references remain — the namespace is jacket.* (epic #1)"
+            exit 1
+          fi
+      - name: No JACKET_ROOT in package or CLI code
+        run: |
+          if grep -rn 'JACKET_ROOT' jacket/ run.sh 2>/dev/null; then
+            echo "::error::JACKET_ROOT is a removed contract — resolve through the installed package"
+            exit 1
+          fi
+      - name: bin/ scripts stay dead
+        run: |
+          if [ -e bin/jacket ] || [ -e bin/jacket-ctl ]; then
+            echo "::error::bin/ scripts were replaced by [entrypoints.scripts] (issue #3)"
+            exit 1
+          fi
