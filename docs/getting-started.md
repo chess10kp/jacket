@@ -123,6 +123,38 @@ Available sources: `wm`, `battery`, `power_profiles`, `audio`, `brightness`,
 `bluetooth`, `pipewire`, `mpris`, `notifications`, `launcher`, `tray`,
 `network`. See LIBRARY.md §3.7 for each module's signal fields.
 
+## Install the package
+
+jacket ships as a wheel. Until it is on a registry, install it from a
+clone or from a GitHub Release artifact:
+
+```bash
+# from a clone
+jac build --as wheel
+jac install dist/jacket-*.whl      # registers the `jacket` / `jacket-ctl` commands
+
+# or, once a release exists: download jacket-<ver>-py3-none-any.whl and
+jac install ~/Downloads/jacket-0.1.0-py3-none-any.whl
+```
+
+For development on the library itself use an editable install instead:
+`jac install -e .`
+
+Notes:
+- `jac install --git <repo>` currently shells out to pip and needs a
+  `pyproject.toml`/`setup.py`, so it does not apply to pure-Jac repos.
+  When jacket lands on TestPyPI/PyPI this becomes `jac install jacket`.
+- Running from a checkout still works (`jac run examples/minimal/main.jac`),
+  but consumer configs resolve `jacket.*` through whatever is installed.
+
+## Session plumbing on a real machine
+
+The Jac runtime can't see the system PyGObject by default, and
+gtk4-layer-shell must be preloaded before GTK opens the display.
+`packaging/install.sh` handles both: it writes a `system_site.pth` into every
+Jac runtime site-packages (idempotent across Jac upgrades) and drops a
+systemd user unit that starts your bar at graphical-session start.
+
 ## Your own config directory (the normal workflow)
 
 For daily use, scaffold a shell in your config dir instead of running from the
