@@ -8,6 +8,7 @@
 import from time { strftime, localtime }
 import from src.reactive { signal }
 import from src.osp { Child, Anchored }
+import from src.adapter_api { adapter }
 import from src.builders { component, Box, Label, Button, Window, For, row_item, Slider }
 import from src.sources { ticker }
 import from src.wm { get_wm }
@@ -16,6 +17,11 @@ import from src.bluetooth { get_bluetooth }
 import from src.audio { get_audio }
 import from src.mpris { get_mpris, format_status }
 import from src.notifications { get_notifications }
+import from src.calendar { month_text }
+import from datetime { datetime }
+import from examples.reference.widgets {
+    ControlCenterButton, MediaPopupButton,
+}
 import from src.launcher { get_launcher }
 import from src.tray { get_tray }
 import from src.desktop { get_desktop }
@@ -34,6 +40,33 @@ def Clock() -> any {
         class="clock",
         text=t.map(lambda (tv: any) { strftime("%a %d %b  %H:%M:%S", localtime(tv)); }),
     );
+}
+
+
+# CalendarFlyout — click the clock: month grid as one mono label; refreshes
+# every 30s (the grid only changes at midnight). Pure grid math in src/calendar.
+def _cal_text(now: int) -> str {
+    names = ["January", "February", "March", "April", "May", "June", "July",
+             "August", "September", "October", "November", "December"];
+    d = datetime.fromtimestamp(now).date();
+    return month_text(d.year, d.month, d.year, d.month, d.day, names);
+}
+
+@component
+def CalendarPanel() -> any {
+    t = ticker(30000);
+    return Box(orientation="V", class="calendar-flyout", children=[
+        Label(class="calendar-grid", text=t.map(_cal_text)),
+    ]);
+}
+
+@component
+def ClockFlyoutButton() -> any {
+    btn = Clock();
+    panel = CalendarPanel();
+    cleanup = adapter().attach_click_popover(btn.widget, panel.widget, "bottom");
+    if cleanup is not None { btn.on_cleanup(cleanup); }
+    return btn;
 }
 
 
@@ -261,17 +294,18 @@ def Bar(mon: any = None) -> any {
     win +>:Child(order=0):+> inner;
     inner +>:Child(order=0):+> LauncherButton();
     inner +>:Child(order=1):+> Workspaces();
-    inner +>:Child(order=2):+> MediaWidget();
+    inner +>:Child(order=2):+> MediaPopupButton();
     inner +>:Child(order=3):+> Box(orientation="H", class="spacer", hexpand=True);
-    inner +>:Child(order=4):+> Clock();
+    inner +>:Child(order=4):+> ClockFlyoutButton();
     inner +>:Child(order=5):+> Box(orientation="H", class="spacer", hexpand=True);
-    inner +>:Child(order=6):+> ModeButtons();
-    inner +>:Child(order=7):+> TrayWidget();
-    inner +>:Child(order=8):+> NotificationsWidget();
+    inner +>:Child(order=6):+> ControlCenterButton();
+    inner +>:Child(order=7):+> ModeButtons();
+    inner +>:Child(order=8):+> TrayWidget();
+    inner +>:Child(order=9):+> NotificationsWidget();
     vol = VolumeButton();
     vol +>:Anchored(mode="hover", position="bottom"):+> VolumePanel();
-    inner +>:Child(order=9):+> vol;
-    inner +>:Child(order=10):+> BluetoothWidget();
-    inner +>:Child(order=11):+> BatteryWidget();
+    inner +>:Child(order=10):+> vol;
+    inner +>:Child(order=11):+> BluetoothWidget();
+    inner +>:Child(order=12):+> BatteryWidget();
     return win;
 }

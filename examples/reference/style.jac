@@ -162,4 +162,40 @@ glob CSS: str = """
     background: rgba(255, 255, 255, 0.13);
 }
 
+
+   --- widget flyouts (control center / calendar / media popup) ---
+.control-center { min-width: 260px; padding: 12px; }
+.cc-title {
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    color: #aab2c0; margin-bottom: 8px;
+}
+.cc-row { min-height: 30px; padding: 4px 0; }
+.cc-icon { color: #e8c47a; padding-right: 8px; }
+.cc-slider { min-width: 200px; }
+.cc-power { spacing: 6px; }
+.pp-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 8px; padding: 4px 10px;
+    color: #c8ccd4; font-size: 12px;
+}
+.pp-btn.active {
+    background: rgba(120, 160, 255, 0.35); color: #ffffff;
+}
+.cc-network { color: #9aa0aa; font-size: 13px; }
+.calendar-flyout { padding: 10px 14px; }
+.calendar-grid {
+    font-family: monospace; font-size: 13px;
+    color: #c8ccd4; line-height: 1.5;
+}
+.media-popup { padding: 10px 14px; min-width: 220px; }
+.media-popup-title { font-size: 15px; font-weight: 600; color: #f2f4f8; }
+.media-popup-artist { font-size: 13px; color: #9aa0aa; }
+.media-popup-controls { spacing: 8px; margin-top: 8px; }
+.media-popup-controls button {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px; padding: 6px 12px;
+    color: #f2f4f8; font-size: 15px;
+}
+.media-popup-controls button:hover { background: rgba(255, 255, 255, 0.16); }
+""";
 """;
