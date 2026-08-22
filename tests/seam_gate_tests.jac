@@ -99,20 +99,30 @@ def _strip_comments(text):
     return "\n".join(out_lines)
 
 
-_GI_IMPORT_RE = _re.compile(
-    r"^\s*from\s+gi\.repository\s+import\s+(?P<names>[\w.,\s]+)$")
+_GI_IMPORT_RES = (
+    # Python syntax: `from gi.repository import GLib, Gio`
+    _re.compile(
+        r"^\s*from\s+gi\.repository\s+import\s+(?P<names>[\w.,\s]+?)\s*$"),
+    # Jac syntax: `import from gi.repository { GLib, Gio };`
+    _re.compile(
+        r"^\s*import\s+from\s+gi\.repository\s*\{(?P<names>[\w.,\s]+?)\}\s*;?\s*$"),
+)
 _SANCTIONED_SLICE = frozenset({"GLib", "Gio"})
 
 
 def _sanctioned_gi_import(line):
-    """True for `from gi.repository import ...` lines binding ONLY the
+    """True for `from gi.repository import ...` (Python) or
+    `import from gi.repository { ... }` (Jac) lines binding ONLY the
     GLib/Gio transport slice (the §1 non-goal that survives GTK removal)."""
-    m = _GI_IMPORT_RE.match(line)
-    if m is None:
-        return False
-    names = [n.strip().split(" as ")[0].strip()
-             for n in m.group("names").split(",")]
-    return all(n in _SANCTIONED_SLICE for n in names)
+    for pattern in _GI_IMPORT_RES:
+        m = pattern.match(line)
+        if m is None:
+            continue
+        names = [n.strip().split(" as ")[0].strip()
+                 for n in m.group("names").split(",")]
+        if names and all(n in _SANCTIONED_SLICE for n in names):
+            return True
+    return False
 
 
 def _token_allowed(rel, token, cls):
