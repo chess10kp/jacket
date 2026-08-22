@@ -19,6 +19,7 @@
 # DEGRADATION: no session bus -> start_tray() finds nothing, items stays [], the
 # bar hides the widget. Exactly like the notification daemon.
 import from src.reactive { signal, Signal }
+import from src.busname { own_name }
 
 
 # ---------------------------------------------------------------------------
@@ -285,49 +286,33 @@ def _remove_item(key):
     _emit_items()
 
 
-# --- Watcher server: our registry (used when no other watcher exists) -------
-def _serve_watcher():
-    conn = _state["conn"]
-    try:
-        node = Gio.DBusNodeInfo.new_for_xml(_WATCHER_XML)
-        iface = node.interfaces[0]
-    except Exception:
-        return
-
-    def method_call(c, sender, path, interface, method, params, invocation):
-        if method == "RegisterStatusNotifierItem":
-            (service,) = params.unpack()
-            key = resolve_item(service, sender)
-            _add_item(key)
-            c.emit_signal(None, _WATCHER_PATH, _WATCHER_IFACE,
-                          "StatusNotifierItemRegistered",
-                          GLib.Variant("(s)", (key,)))
-            invocation.return_value(None)
-        elif method == "RegisterStatusNotifierHost":
-            _state["host_registered"] = True
-            c.emit_signal(None, _WATCHER_PATH, _WATCHER_IFACE,
-                          "StatusNotifierHostRegistered", None)
-            invocation.return_value(None)
-        else:
-            invocation.return_value(None)
-
-    def get_property(c, sender, path, interface, name):
-        if name == "RegisteredStatusNotifierItems":
-            return GLib.Variant("as", list(_state["items"].keys()))
-        if name == "IsStatusNotifierHostRegistered":
-            return GLib.Variant("b", True)
-        if name == "ProtocolVersion":
-            return GLib.Variant("i", 0)
-        return None
-
-    try:
-        conn.register_object(_WATCHER_PATH, iface, method_call, get_property, None)
-        _state["own_watcher"] = True
-    except Exception:
-        pass
+# --- Watcher server dispatchers (shared busname owner calls these) ----------
+def _watcher_dispatch(c, sender, path, interface, method, params, invocation):
+    if method == "RegisterStatusNotifierItem":
+        (service,) = params.unpack()
+        key = resolve_item(service, sender)
+        _add_item(key)
+        c.emit_signal(None, _WATCHER_PATH, _WATCHER_IFACE,
+                      "StatusNotifierItemRegistered",
+                      GLib.Variant("(s)", (key,)))
+        invocation.return_value(None)
+    elif method == "RegisterStatusNotifierHost":
+        _state["host_registered"] = True
+        c.emit_signal(None, _WATCHER_PATH, _WATCHER_IFACE,
+                      "StatusNotifierHostRegistered", None)
+        invocation.return_value(None)
+    else:
+        invocation.return_value(None)
 
 
-# --- NameOwnerChanged: drop items whose owning app exited -------------------
+def _watcher_props(c, sender, path, interface, name):
+    if name == "RegisteredStatusNotifierItems":
+        return GLib.Variant("as", list(_state["items"].keys()))
+    if name == "IsStatusNotifierHostRegistered":
+        return GLib.Variant("b", True)
+    if name == "ProtocolVersion":
+        return GLib.Variant("i", 0)
+    return None
 def _watch_name_losses():
     conn = _state["conn"]
 
@@ -414,14 +399,20 @@ def start_tray(on_items):
         return
     _state["conn"] = conn
 
-    def on_acquired(c, name):
-        _serve_watcher()
+    # Try to be the watcher via the shared owner (src/busname.jac): if a
+    # competing watcher (waybar/plasma) exits while we run, we take over the
+    # name and start serving the registry. Whether or not we win, the host
+    # afterwards talks to whichever watcher owns the name.
+    def _watcher_acquired(c):
+        _state["own_watcher"] = True
 
-    # Try to be the watcher; whether or not we win, run the host afterwards.
+    def _watcher_lost(c):
+        _state["own_watcher"] = False
+
     try:
-        Gio.bus_own_name(
-            Gio.BusType.SESSION, _WATCHER_NAME, Gio.BusNameOwnerFlags.NONE,
-            on_acquired, None, None)
+        own_name(_WATCHER_NAME, _WATCHER_PATH, _WATCHER_XML,
+                 method_call=_watcher_dispatch, get_property=_watcher_props,
+                 on_acquired=_watcher_acquired, on_lost=_watcher_lost)
     except Exception:
         pass
     _watch_name_losses()

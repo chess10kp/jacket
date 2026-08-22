@@ -11,6 +11,9 @@
 # the reducer (and its tests) still exercise all the real logic.
 import from src.reactive { signal, Signal }
 import from src.glib { timeout_add }
+import from src.busname { own_name as bus_own_name }
+import json;
+import os;
 
 
 # ---------------------------------------------------------------------------
@@ -99,13 +102,74 @@ def hint_urgency(hints: dict) -> int {
 
 
 # ===========================================================================
-# ::py:: shim — Gio session-bus ownership + method dispatch, walled off here.
+# Crash persistence: the active list survives a restart.
+# ---------------------------------------------------------------------------
+# Every change writes $XDG_STATE_HOME/jacket/notifications.json; startup
+# restores it. The "closing" flag is deliberately dropped — a crash mid-exit
+# tween must not replay half-finished removals.
+# ===========================================================================
+def state_path() -> str {
+    base = os.environ.get("XDG_STATE_HOME");
+    if base is None or base == "" {
+        home = os.environ.get("HOME", "");
+        if home == "" { return ""; }
+        base = os.path.join(home, ".local", "state");
+    }
+    return os.path.join(base, "jacket", "notifications.json");
+}
+
+
+def serialize_active(active: list) -> str {
+    keep = [{
+        "id": n["id"], "app_name": n["app_name"], "summary": n["summary"],
+        "body": n["body"], "urgency": n["urgency"], "expire_ms": n["expire_ms"],
+    } for n in active];
+    return json.dumps(keep);
+}
+
+
+def deserialize_active(text: str) -> list {
+    try {
+        raw: any = json.loads(text);
+    } except Exception {
+        return [];
+    }
+    out: list = [];
+    if not isinstance(raw, list) { return out; }
+    for d in raw {
+        try {
+            out.append(make_notification(int(d["id"]), str(d["app_name"]),
+                                         str(d["summary"]), str(d["body"]),
+                                         int(d["urgency"]), int(d["expire_ms"])));
+        } except Exception {
+            continue;
+        }
+    }
+    return out;
+}
+
+
+def load_saved() -> list {
+    p = state_path();
+    if p == "" { return []; }
+    try {
+        with open(p) as f {
+            text = f.read();
+        }
+        return deserialize_active(text);
+    } except Exception {
+        return [];
+    }
+}
+
+
+# ===========================================================================
+# ::py:: shim — notification-protocol dispatch only. Name ownership, object
+# registration and re-acquire-on-holder-exit live in src/busname.jac (shared
+# with any future well-known-name service).
 # ===========================================================================
 ::py::
-from gi.repository import Gio, GLib
-
-_NAME = "org.freedesktop.Notifications"
-_PATH = "/org/freedesktop/Notifications"
+from gi.repository import GLib
 
 # Minimal introspection for the four methods the spec requires.
 _XML = """
@@ -139,43 +203,30 @@ _XML = """
 """
 
 
-def own_name(on_notify, on_close):
-    """Claim the daemon name. on_notify(app_name, replaces_id, summary, body,
-    hints_dict, expire) -> assigned id (int). on_close(id). Returns the owner
-    id, or None when there is no session bus."""
-    try:
-        node = Gio.DBusNodeInfo.new_for_xml(_XML)
-        iface = node.interfaces[0]
-    except Exception:
-        return None
+def serve(on_notify, on_close):
+    """Serve org.freedesktop.Notifications via the shared bus-name owner.
+    on_notify(app_name, replaces_id, summary, body, hints_dict, expire) ->
+    assigned id (int). on_close(id). Returns the owner handle (opaque dict),
+    or None when there is no session bus."""
+    def method_call(c, sender, path, interface, method, params, invocation):
+        if method == "Notify":
+            app_name, replaces_id, app_icon, summary, body, actions, hints, expire = params.unpack()
+            nid = on_notify(app_name, int(replaces_id), summary, body, hints, int(expire))
+            invocation.return_value(GLib.Variant("(u)", (nid,)))
+        elif method == "CloseNotification":
+            (cid,) = params.unpack()
+            on_close(int(cid))
+            invocation.return_value(None)
+        elif method == "GetCapabilities":
+            invocation.return_value(GLib.Variant("(as)", (["body", "actions", "body-markup"],)))
+        elif method == "GetServerInformation":
+            invocation.return_value(GLib.Variant("(ssss)", ("jacket", "jaseci", "0.1", "1.2")))
+        else:
+            invocation.return_value(None)
 
-    def on_bus_acquired(conn, name):
-        def method_call(c, sender, path, interface, method, params, invocation):
-            if method == "Notify":
-                app_name, replaces_id, app_icon, summary, body, actions, hints, expire = params.unpack()
-                nid = on_notify(app_name, int(replaces_id), summary, body, hints, int(expire))
-                invocation.return_value(GLib.Variant("(u)", (nid,)))
-            elif method == "CloseNotification":
-                (cid,) = params.unpack()
-                on_close(int(cid))
-                invocation.return_value(None)
-            elif method == "GetCapabilities":
-                invocation.return_value(GLib.Variant("(as)", (["body", "actions", "body-markup"],)))
-            elif method == "GetServerInformation":
-                invocation.return_value(GLib.Variant("(ssss)", ("jacket", "jaseci", "0.1", "1.2")))
-            else:
-                invocation.return_value(None)
-        try:
-            conn.register_object(_PATH, iface, method_call, None, None)
-        except Exception:
-            pass
-
-    try:
-        return Gio.bus_own_name(
-            Gio.BusType.SESSION, _NAME, Gio.BusNameOwnerFlags.NONE,
-            on_bus_acquired, None, None)
-    except Exception:
-        return None
+    return bus_own_name(
+        "org.freedesktop.Notifications", "/org/freedesktop/Notifications",
+        _XML, method_call, None, None)
 ::py::
 
 
@@ -194,7 +245,49 @@ obj NotificationDaemon {
     def postinit() {
         # Pass bound methods (NOT wrapper lambdas): nesting statement-bodied
         # lambdas inside a method trips a Jac codegen scoping bug.
-        self._owner = own_name(self._notify, self.close);
+        self._owner = serve(self._notify, self.close);
+        self._restore();
+    }
+
+    # Replay notifications saved by a previous (crashed) incarnation: bubbles
+    # reappear with their original ids and remaining timeout semantics.
+    def _restore() {
+        saved: list = load_saved();
+        if saved == [] { return; }
+        top = 0;
+        for n in saved {
+            rec: dict = n;
+            if int(rec["id"]) > top { top = int(rec["id"]); }
+        }
+        if top >= self._next_id { self._next_id = top + 1; }
+        self.notifications.set(saved);
+        for n in saved {
+            rec: dict = n;
+            nid = int(rec["id"]);
+            t = resolve_timeout(int(rec["expire_ms"]), int(rec["urgency"]));
+            if t > 0 {
+                timeout_add(t, lambda (i: int = nid) {
+                    self.begin_close(i);
+                    return False;
+                });
+            }
+        }
+        self._persist();
+    }
+
+    # Snapshot the active list to the state file. Best-effort: persistence
+    # must never take the daemon down.
+    def _persist() {
+        p = state_path();
+        if p == "" { return; }
+        try {
+            os.makedirs(p.rsplit("/", 1)[0], exist_ok=True);
+            with open(p, "w") as f {
+                f.write(serialize_active(self.notifications.peek()));
+            }
+        } except Exception as e {
+            _ = e;
+        }
     }
 
     # Returns the assigned id (spec: reuse replaces_id when non-zero).
@@ -204,6 +297,7 @@ obj NotificationDaemon {
         urgency = hint_urgency(hints);
         notif = make_notification(nid, app, summary, body, urgency, expire);
         self.notifications.set(apply_notify(self.notifications.peek(), notif));
+        self._persist();
 
         timeout = resolve_timeout(expire, urgency);
         if timeout > 0 {
@@ -218,6 +312,7 @@ obj NotificationDaemon {
     # Immediate removal (bus CloseNotification keeps spec-fast semantics).
     def close(id: int) {
         self.notifications.set(dismiss(self.notifications.peek(), id));
+        self._persist();
     }
 
     # Graceful removal: flag the row closing (UI tweens it out), then remove
@@ -227,6 +322,7 @@ obj NotificationDaemon {
         if is_closing(active, id) { return; }
         if dismiss(active, id) == active { return; }   # id not in list
         self.notifications.set(mark_closing(active, id));
+        self._persist();
         timeout_add(EXIT_GRACE_MS, lambda (i: int = id) {
             self._finish_close(i);
             return False;                          # one-shot

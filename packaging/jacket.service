@@ -16,7 +16,7 @@ After=graphical-session.target
 Type=simple
 # %h = the user's home; jacket must be on PATH (see packaging/install.sh).
 ExecStart=jacket run
-Restart=on-failure
+Restart=always
 RestartSec=2
 # Bring the shell down cleanly on logout.
 KillMode=mixed

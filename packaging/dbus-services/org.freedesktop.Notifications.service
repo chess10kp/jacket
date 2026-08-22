@@ -1,0 +1,21 @@
+# D-Bus session-bus activation file for jacket's notification daemon.
+#
+# Installed by packaging/install.sh into
+#   ${XDG_DATA_HOME:-~/.local/share}/dbus-1/services/
+#
+# Why it exists: jacket IS org.freedesktop.Notifications. If the process
+# crashes (or isn't running yet), senders' Notify() calls used to fail with
+# "no such daemon" and the notification was lost forever. With this file the
+# bus itself relaunches jacket on the next incoming Notify() — no lost window,
+# no polling.
+#
+# While jacket owns the name this file is inert; activation fires only when
+# nobody owns org.freedesktop.Notifications.
+#
+# NOTE: installing this makes jacket your notification daemon. If you'd rather
+# use mako/dunst, don't install it (or remove the installed copy) — those
+# daemons ship their own activation files.
+[D-BUS Service]
+Name=org.freedesktop.Notifications
+Exec=jacket run
+SystemdService=jacket.service

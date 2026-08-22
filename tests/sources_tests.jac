@@ -15,7 +15,7 @@ import from src.pipewire {
     merge_device_volume, resolve_wpctl_id
 }
 import from src.launcher { parse_desktop, filter_apps, score, strip_field_codes }
-import from src.notifications { make_notification, apply_notify, dismiss, mark_closing, is_closing, resolve_timeout, hint_urgency }
+import from src.notifications { make_notification, apply_notify, dismiss, mark_closing, is_closing, resolve_timeout, hint_urgency, serialize_active, deserialize_active }
 import from src.mpris { parse_metadata, is_playing, format_status }
 import from src.tray { resolve_item, split_item_key, should_show, pick_icon_name, _pixmap_to_texture, parse_menu_layout, clean_label }
 import from src.network { parse_nmcli_general_status, parse_nmcli_wifi_list, parse_nmcli_active_connection }
@@ -507,6 +507,22 @@ test "resolve_timeout: critical is sticky, 0 never, -1 defaults" {
 test "hint_urgency defaults to normal, reads the hint" {
     assert hint_urgency({}) == 1;
     assert hint_urgency({"urgency": 2}) == 2;
+}
+
+
+test "serialize/deserialize roundtrips the active list, drops closing flags" {
+    import from src.notifications { serialize_active, deserialize_active }
+    active = [
+        make_notification(1, "app", "sum", "body", 1, 5000),
+        make_notification(2, "app2", "s2", "", 2, 0),
+    ];
+    active[1]["closing"] = True;
+    restored = deserialize_active(serialize_active(active));
+    assert len(restored) == 2;
+    assert restored[0]["id"] == 1 and restored[0]["summary"] == "sum";
+    assert restored[1]["urgency"] == 2;
+    assert not restored[1]["closing"];     # crash mid-tween must not replay
+    assert restored[0]["expire_ms"] == 5000;
 }
 
 

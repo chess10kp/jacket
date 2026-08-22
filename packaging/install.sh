@@ -60,6 +60,22 @@ sed "s|^ExecStart=.*|ExecStart=jacket run|" \
   "$HERE/packaging/jacket.service" > "$UNIT_DIR/jacket.service"
 echo "installed $UNIT_DIR/jacket.service (ExecStart=jacket run)"
 
+# --- 4b. Install D-Bus activation for the notification daemon ---------------
+# If jacket dies, the bus relaunches it on the next Notify() instead of
+# dropping the notification. Inert while jacket owns the name. Skip by
+# creating a file named .no-notif-activation next to this script if you use
+# mako/dunst instead.
+if [ -e "$HERE/packaging/.no-notif-activation" ]; then
+  echo "skipping notification activation (.no-notif-activation present)"
+else
+  SVC_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/dbus-1/services"
+  mkdir -p "$SVC_DIR"
+  sed "s|^Exec=.*|Exec=$BIN_DIR/jacket run|" \
+    "$HERE/packaging/dbus-services/org.freedesktop.Notifications.service" \
+    > "$SVC_DIR/org.freedesktop.Notifications.service"
+  echo "installed $SVC_DIR/org.freedesktop.Notifications.service"
+fi
+
 systemctl --user daemon-reload 2>/dev/null || true
 
 cat <<EOF
