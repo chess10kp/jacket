@@ -203,7 +203,7 @@ run_with_ipc(on_activate,
 
 Then `jacket-ctl status`, `jacket-ctl list`, `jacket-ctl volume`,
 `jacket-ctl toggle`, `jacket-ctl quit`. Worked example: `examples/swaybar/`
-(`./run.sh examples/swaybar/main.jac status`).
+(`jac run examples/swaybar/main.jac`, then `jacket-ctl status`).
 
 ## 11. Teardown
 

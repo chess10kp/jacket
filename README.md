@@ -80,7 +80,7 @@ sources (DBus/Gio, Hypr IPC, sysfs) ──writes──▶ Signals
 | `jacket/launcher.jac` | `.desktop` scan + fuzzy app launcher source |
 | `jacket/ipc.jac` | AGS-style IPC handler registry (`status` / `list` / named getters) |
 | `examples/reference/` | full bar shell: `main.jac`, `components.jac`, popups, `style.jac` |
-| `examples/swaybar/` | scroll/sway status-bar clone with IPC (`./run.sh examples/swaybar/main.jac`) |
+| `examples/swaybar/` | scroll/sway status-bar clone with IPC (`jac run examples/swaybar/main.jac`) |
 | `examples/minimal/main.jac` | minimal bootstrap (LIBRARY.md §2) |
 | `examples/reference/query_demo.jac` | demo: spawn walkers over your own ViewNode tree |
 | `tests/reactive_tests.jac` | scheduler correctness (diamond, cutoff, disposal, loop) |
@@ -94,9 +94,10 @@ sources (DBus/Gio, Hypr IPC, sysfs) ──writes──▶ Signals
 ## Run
 
 ```bash
-./run.sh                                    # your bar (~/.config/jacket/default/; auto-inits)
-./run.sh examples/reference/main.jac        # in-repo reference bar (library dev)
-./run.sh examples/minimal/main.jac          # minimal bootstrap
+jac install -e .                            # one-time dev setup (editable)
+jacket run                                  # your bar (~/.config/jacket/default/; auto-inits)
+jacket run --watch                          # dev mode: CSS hot reload + .jac restart
+jac run examples/reference/main.jac         # in-repo reference bar (library dev)
 jac test tests/   # full suite (23 suites)
 ```
 

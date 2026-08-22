@@ -12,3 +12,10 @@ directory = "tests"
 
 [dev]
 test_jobs = "0"   # serial: reactive tests share module scheduler state
+
+[entrypoints.scripts]
+jacket = "jacket.cli:main"
+jacket-ctl = "jacket.ctl:main"
+
+[project.include.data]
+jacket = ["**/*.tmpl", "**/*.css"]

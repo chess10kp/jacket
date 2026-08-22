@@ -28,14 +28,12 @@ _WATCH = {"jac_sid": None}
 
 def _run_jac_check(entry_jac):
     import subprocess
-    root = os.environ.get("JACKET_ROOT", os.getcwd())
     try:
         p = subprocess.run(
             ["jac", "check", entry_jac],
             capture_output=True,
             text=True,
             timeout=30,
-            cwd=root,
         )
         out = (p.stderr or "") + (p.stdout or "")
         return (p.returncode, out.strip())

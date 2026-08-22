@@ -87,7 +87,7 @@ with entry {
 `packaging/install.sh` for the Jac-runtime `system_site.pth` bootstrap.
 
 **Launch (library dev):** `jac run examples/reference/main.jac` or
-`./run.sh examples/reference/main.jac` when hacking the library in-tree.
+`jac run examples/reference/main.jac` when hacking the library in-tree (after `jac install -e .`).
 
 ---
 
@@ -121,7 +121,8 @@ Layout:
 | syntax error on save | stderr message; last good bar keeps running |
 
 `jacket/config.jac` resolves paths; `jacket/dev_watch.jac` owns the monitors.
-`packaging/config-template/` is the `jacket init` scaffold.
+`jacket/config_template/` is the `jacket init` scaffold (shipped as
+`*.jac.tmpl`; `jacket init` strips the suffix).
 
 ---
 
@@ -362,7 +363,7 @@ This module owns the handler registry.
 | `IPC.set_bar(b)` / `set_app(a)` | Wire bar toggle + quit |
 | `IPC.handle(argv)` | `status`, `list`, `<name>`, `toggle`, `quit` |
 
-Worked example: `examples/swaybar/` (`./run.sh examples/swaybar/main.jac status`).
+Worked example: `examples/swaybar/` (`jac run examples/swaybar/main.jac`, then `jacket-ctl status`).
 
 ---
 
