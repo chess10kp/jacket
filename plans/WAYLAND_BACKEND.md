@@ -11,7 +11,7 @@
 
 Render jacket shells as a **raw Wayland client** — `zwlr_layer_shell_v1` +
 `wl_shm` buffers — with **no Gtk/Gdk/gtk4-layer-shell** in the process, behind
-the existing adapter contract (`src/adapter_api.jac`). Same Jac `@component`
+the existing adapter contract (`jacket/adapter_api.jac`). Same Jac `@component`
 trees, same reconciler, same tests; a different terminal projection.
 
 **Non-goals (for now)**
@@ -24,7 +24,7 @@ trees, same reconciler, same tests; a different terminal projection.
 
 ## 2. What GTK actually does for us today (the inventory to replace)
 
-Measured against `src/adapter.jac` (696 lines) and the reference shell:
+Measured against `jacket/adapter.jac` (696 lines) and the reference shell:
 
 | Concern | Today | Size of real usage |
 |---|---|---|
@@ -50,7 +50,7 @@ reactive core / builders / For / Show / OSP      (unchanged)
               ▼
    ┌────────────────────────┬──────────────────────────┐
    │ GtkAdapter             │ WlAdapter  (new)         │
-   │  src/adapter.jac       │  src/wl_adapter.jac      │
+   │  jacket/adapter.jac       │  jacket/wl_adapter.jac      │
    └────────────────────────┴──────────────────────────┘
         GLib main loop            pywayland event loop
         GSK → GPU                 cairo image surface → wl_shm
@@ -64,7 +64,7 @@ until W-parity lands.
 ### Backend selection rule
 
 Anything above the seam may not import gi. Audit gate: `grep -rn "gi\|Gtk\|Gdk"
-src --include="*.jac" -l` must return only `adapter.jac`, `glib.jac`, and the
+jacket --include="*.jac" -l` must return only `adapter.jac`, `glib.jac`, and the
 DBus source modules (which use Gio, not Gtk).
 
 ## 4. Technology choices
@@ -153,11 +153,11 @@ relink are environment-blocked)*
 - Status: tray PNG path complete on wl — WlAdapter gained py_make_texture
   (RGBA → premultiplied-BGRA cairo surface, pure/headless) and an Image tag
   that blits it scale-to-fit; _pixmap_to_texture now asks the ACTIVE adapter
-  first instead of hardcoding src.adapter. Renderer flip via new
-  src/backend.jac shim (JACKET_RENDERER=auto|wl|gtk; auto = wl whenever
+  first instead of hardcoding jacket.adapter. Renderer flip via new
+  jacket/backend.jac shim (JACKET_RENDERER=auto|wl|gtk; auto = wl whenever
   WAYLAND_DISPLAY + pywayland are usable, else GTK): re-exports install /
   run_with_ipc / css / monitors / restart; bin/jacket grew --renderer; the
-  config template imports switched to src.backend. Parity sweep of notif
+  config template imports switched to jacket.backend. Parity sweep of notif
   actions + MPRIS controls: both use tags/props the wl adapter fully supports
   (Button/Slider/label/hidden/child); no gaps found. wl_adapter also gained
   apply_css_file / request_restart / run_with_ipc shims so configs can swap

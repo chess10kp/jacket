@@ -1,11 +1,11 @@
 # osp_walker_tests.jac — the §8a payoff, tested headless against the MOCK
 # adapter. Build a real ViewNode tree via the builders, then spawn the OSP
 # query/restyle walkers over it and assert. No GTK.
-import from src.reactive { signal }
-import from src.mock_adapter { install_mock }
-import from src.builders { Box, Label, Button, dispose_tree }
-import from src.osp { ViewNode, query_by_class, flash_class, unflash_class, Restyle, collect }
-import from src.runtime_graph { reset_session_store, session_store }
+import from jacket.reactive { signal }
+import from jacket.mock_adapter { install_mock }
+import from jacket.builders { Box, Label, Button, dispose_tree }
+import from jacket.osp { ViewNode, query_by_class, flash_class, unflash_class, Restyle, collect }
+import from jacket.runtime_graph { reset_session_store, session_store }
 
 
 def count_kind(ops: list, kind: str) -> int {

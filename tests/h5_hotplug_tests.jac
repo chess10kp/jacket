@@ -1,13 +1,13 @@
 # h5_hotplug_tests.jac — H5 hotplug edge cases (Change 7).
 # ---------------------------------------------------------------------------
-import from src.mock_adapter { install_mock }
-import from src.desktop { create_desktop, bootstrap_reference_outputs }
-import from src.outputs { apply_output_attach, apply_output_detach, list_outputs }
-import from src.policy { enter_mode }
-import from src.projection { register_surface_builder, reset_projection }
-import from src.runtime_graph { session_store, session_outputs, output_surfaces }
-import from src.graph_query { status_dict }
-import from src.builders { Window, Label }
+import from jacket.mock_adapter { install_mock }
+import from jacket.desktop { create_desktop, bootstrap_reference_outputs }
+import from jacket.outputs { apply_output_attach, apply_output_detach, list_outputs }
+import from jacket.policy { enter_mode }
+import from jacket.projection { register_surface_builder, reset_projection }
+import from jacket.runtime_graph { session_store, session_outputs, output_surfaces }
+import from jacket.graph_query { status_dict }
+import from jacket.builders { Window, Label }
 
 
 def _surface_kinds(st: dict, connector: str) -> list {

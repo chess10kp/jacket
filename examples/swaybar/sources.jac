@@ -5,25 +5,25 @@
 #   countdown  /tmp/timer_start elapsed timer (HH:MM:SS)
 #   stocks     LITE CORZ CRWV BE NOW (Yahoo Finance, 10-min cache in /tmp)
 #   mem        used memory (human), from /proc/meminfo
-#   bluetooth  first connected device name (src.bluetooth)
-# Battery + clock come from the LIBRARY (src.battery, src.sources) — this file
+#   bluetooth  first connected device name (jacket.bluetooth)
+# Battery + clock come from the LIBRARY (jacket.battery, jacket.sources) — this file
 # only adds what the library doesn't ship. Everything here is CONSUMER code:
-# nothing is added to src/. (See LIBRARY.md §1: examples are consumers.)
+# nothing is added to jacket/. (See LIBRARY.md §1: examples are consumers.)
 #
 # Network (stocks) runs on a worker thread and marshals back via the GLib idle
-# shim (src.glib.idle_add) so the GTK main loop never blocks on a fetch. The
+# shim (jacket.glib.idle_add) so the GTK main loop never blocks on a fetch. The
 # /tmp cache format matches the shell script byte-for-byte, so the two can
 # share caches.
-import from src.reactive { signal, Signal }
-import from src.glib { timeout_add, idle_add }
-import from src.sources { ticker }
+import from jacket.reactive { signal, Signal }
+import from jacket.glib { timeout_add, idle_add }
+import from jacket.sources { ticker }
 
 
 # ===========================================================================
 # ::py:: seam — file reads and the threaded stock fetcher.
 # (Mirrors the walled-off style of battery.jac / audio.jac: system access
 # lives in ::py::, plain callables exposed to Jac. Network stays off the main
-# loop via a daemon thread + the src.glib idle shim.)
+# loop via a daemon thread + the jacket.glib idle shim.)
 # ===========================================================================
 ::py::
 import os, threading, time, json
@@ -82,7 +82,7 @@ def _fetch_one(ticker):
 
 def spawn_stock_fetch(tickers, on_done):
     """Fetch every ticker off-thread, refresh caches, then call on_done(dict)
-    ON the GLib main loop. Safe to call from Jac. (idle_add is src.glib's shim,
+    ON the GLib main loop. Safe to call from Jac. (idle_add is jacket.glib's shim,
     imported at the Jac level — same pattern as tray.jac's py_make_texture.)"""
     def work():
         out = {}
@@ -109,7 +109,7 @@ def spawn_stock_fetch(tickers, on_done):
 
 
 # ===========================================================================
-# Pure Jac logic (kept here, not in src/, but written so it COULD be tested).
+# Pure Jac logic (kept here, not in jacket/, but written so it COULD be tested).
 # ===========================================================================
 # countdown: parse the timer-start file, format elapsed as HH:MM:SS.
 def _pad2(n: int) -> str {

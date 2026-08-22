@@ -1,11 +1,11 @@
 # reactive_tests.jac — Phase 1 unit tests for the reactive engine + scheduler.
 # GTK-free. These are the highest-value tests in the repo (PLAN §5): scheduler
 # correctness (diamond, equality cutoff, write-loop), combinators, disposal.
-import from src.reactive {
+import from jacket.reactive {
     signal, computed, effect, when, fmt, batch, with_scope, enter_scope, exit_scope,
     create_scope, flush, Reactive
 }
-import from src.topology_reactive { feed_targets }
+import from jacket.topology_reactive { feed_targets }
 
 
 # --- basic: a signal drives an effect -------------------------------------

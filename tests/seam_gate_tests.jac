@@ -2,13 +2,13 @@
 # ---------------------------------------------------------------------------
 # Enforces the backend-selection rule as an executable audit: PyGObject/gi
 # usage may live ONLY behind the adapter seam. Anything above the seam reaches
-# Gtk/GLib through the plain callables of src/adapter_api.jac, so a second
+# Gtk/GLib through the plain callables of jacket/adapter_api.jac, so a second
 # backend (WlAdapter) can be swapped in without touching code above the wall.
 #
 # Policy (encoded below in the ::py:: scanner):
 #   1. HARD_FORBIDDEN tokens ("import gi", gi.repository, require_version, Gtk,
 #      Gdk, GdkPixbuf, Gtk4LayerShell, GObject) are permitted ONLY in
-#      src/adapter.jac. One refinement: a `from gi.repository import ...`
+#      jacket/adapter.jac. One refinement: a `from gi.repository import ...`
 #      line that binds ONLY the sanctioned GLib/Gio transport slice (§1
 #      non-goals) is not a GTK leak — DBus sources import through it.
 #   2./3. GLib/Gio are permitted in adapter.jac + glib.jac (the loop shim) and
@@ -31,16 +31,16 @@ import re as _re
 from pathlib import Path as _Path
 
 _ROOT = _Path(__file__).resolve().parent.parent
-_SCAN_DIRS = ("src", "examples")
+_SCAN_DIRS = ("jacket", "examples")
 
 _HARD_FORBIDDEN = ("import gi", "gi.repository", "require_version",
                    "Gtk", "Gdk", "GdkPixbuf", "Gtk4LayerShell", "GObject")
 _GLIB_TOKENS = ("GLib",)
 _GIO_TOKENS = ("Gio",)
 
-_SEAM = "src/adapter.jac"
-_SEAMS = ("src/adapter.jac", "src/wl_adapter.jac")   # both backend seams (§3)
-_LOOP_SHIM = "src/glib.jac"
+_SEAM = "jacket/adapter.jac"
+_SEAMS = ("jacket/adapter.jac", "jacket/wl_adapter.jac")   # both backend seams (§3)
+_LOOP_SHIM = "jacket/glib.jac"
 _SOURCE_MODULES = frozenset({
     "adapter.jac", "glib.jac", "battery.jac", "bluetooth.jac",
     "brightness.jac", "dev_watch.jac", "hyprland.jac", "ipc.jac",
@@ -50,14 +50,14 @@ _SOURCE_MODULES = frozenset({
 
 # The W0-DEBT ledger is paid down: every originally recorded entry landed behind
 # the adapter seam (tray textures -> py_make_texture, the tray popover menu ->
-# build_menu_model/attach_popover, swaybar stocks -> src.glib.idle_add).
+# build_menu_model/attach_popover, swaybar stocks -> jacket.glib.idle_add).
 #
 # One NEW remainder rode in mid-refactor from the concurrent W1/W2 track:
-# src/wl_adapter.jac binds the narrow Pango/PangoCairo gi slice directly
+# jacket/wl_adapter.jac binds the narrow Pango/PangoCairo gi slice directly
 # (WAYLAND_BACKEND.md §4 text choice). It carries a "# W0-DEBT" marker until
 # wl_adapter owns its own walled seam / the sanctioned slice grows.
 _W0_DEBT = {
-    "src/wl_adapter.jac": ["gi.repository", "GLib"],
+    "jacket/wl_adapter.jac": ["gi.repository", "GLib"],
 }
 
 _PATTERNS = {tok: _re.compile(r"\b" + _re.escape(tok).replace("\\ ", "\\s+")
@@ -121,10 +121,10 @@ def _token_allowed(rel, token, cls):
     if cls == "hard":
         return rel in _SEAMS
     # GLib/Gio: the backend seams, the loop shim, and the DBus source
-    # modules under src/.
+    # modules under jacket/.
     if rel in _SEAMS or rel == _LOOP_SHIM:
         return True
-    if rel.startswith("src/") and rel.rsplit("/", 1)[1] in _SOURCE_MODULES:
+    if rel.startswith("jacket/") and rel.rsplit("/", 1)[1] in _SOURCE_MODULES:
         return True
     return False
 
@@ -180,7 +180,7 @@ test "no GTK tokens outside the adapter seam" {
         print("seam gate offenders:", offenders);
     }
     assert len(offenders) == 0,
-        "gi leaked above the adapter seam (only src/adapter.jac may carry "
+        "gi leaked above the adapter seam (only jacket/adapter.jac may carry "
         + "gi/Gtk/Gdk tokens): " + str(offenders);
 }
 
@@ -201,15 +201,15 @@ test "the original W0 debts are paid off" {
     # WlAdapter Pango slice (see ledger note); any OTHER new entry must come
     # with a "# W0-DEBT" marker and a plan to delete it again.
     keys: list = debt_allowlist_keys();
-    assert "src/tray.jac" not in keys, "tray.jac texture debt resurfaced";
+    assert "jacket/tray.jac" not in keys, "tray.jac texture debt resurfaced";
     assert "examples/reference/components.jac" not in keys,
         "components.jac popover debt resurfaced";
     assert "examples/swaybar/sources.jac" not in keys,
         "swaybar sources.jac loop-shim debt resurfaced";
-    if len(keys) > 1 or (len(keys) == 1 and keys[0] != "src/wl_adapter.jac") {
+    if len(keys) > 1 or (len(keys) == 1 and keys[0] != "jacket/wl_adapter.jac") {
         print("unexpected W0-DEBT entries:", keys);
     }
-    assert keys == ["src/wl_adapter.jac"],
+    assert keys == ["jacket/wl_adapter.jac"],
         "unexpected W0-DEBT entries (expected only the wl_adapter Pango "
         + "slice): " + str(keys);
 }
@@ -220,6 +220,6 @@ test "scan actually sees files" {
         print("scanner only saw:", files);
     }
     assert len(files) >= 30, "scanner glob is broken — gate would be vacuous";
-    assert "src/adapter.jac" in files, "seam file not scanned";
-    assert "src/builders.jac" in files, "builders.jac not scanned";
+    assert "jacket/adapter.jac" in files, "seam file not scanned";
+    assert "jacket/builders.jac" in files, "builders.jac not scanned";
 }

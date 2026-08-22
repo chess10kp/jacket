@@ -13,29 +13,29 @@
 #     ./run.sh lock                         # lock the session (lockscreen layer)
 #     ./run.sh why binding:notification-popup --json
 #     ./run.sh quit
-import from src.adapter {
+import from jacket.adapter {
     install, run_with_ipc, apply_css,
     list_monitors, monitor_key, connect_monitors_changed
 }
-import from src.glib { idle_add }
-import from src.osp_local { run_graph_inprocess }
-import from src.reactive { set_flush_hook }
-import from src.desktop {
+import from jacket.glib { idle_add }
+import from jacket.osp_local { run_graph_inprocess }
+import from jacket.reactive { set_flush_hook }
+import from jacket.desktop {
     create_desktop, get_desktop, converge
 }
-import from src.outputs { apply_output_attach, apply_output_detach, classify_role }
-import from src.graph_query { status_dict }
-import from src.policy { policy_state }
-import from src.notifications_policy { wire_notification_source }
-import from src.projection {
+import from jacket.outputs { apply_output_attach, apply_output_detach, classify_role }
+import from jacket.graph_query { status_dict }
+import from jacket.policy { policy_state }
+import from jacket.notifications_policy { wire_notification_source }
+import from jacket.projection {
     register_surface_builder, present_surface_views
 }
-import from src.ipc { ipc, start_ipc_socket }
+import from jacket.ipc { ipc, start_ipc_socket }
 import from examples.reference.components { Bar, MinimalBar }
 import from examples.reference.launcher_ui { LauncherWindow }
 import from examples.reference.notif_ui { NotificationLayer }
 import from examples.reference.lock_ui { LockLayer }
-import from src.lockscreen { get_lockscreen }
+import from jacket.lockscreen { get_lockscreen }
 import from examples.reference.style { CSS }
 
 

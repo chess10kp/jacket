@@ -1,22 +1,22 @@
 # smoke/main.jac — §5.4 live Wayland integration smoke (self-checking, auto-quit).
 # Run via scripts/live_smoke.sh when WAYLAND_DISPLAY is set.
-import from src.adapter {
+import from jacket.adapter {
     install, run_dynamic, apply_css,
     list_monitors, monitor_key
 }
-import from src.glib { idle_add, timeout_add }
-import from src.reactive { set_flush_hook }
-import from src.topology_reactive { flush }
-import from src.desktop {
+import from jacket.glib { idle_add, timeout_add }
+import from jacket.reactive { set_flush_hook }
+import from jacket.topology_reactive { flush }
+import from jacket.desktop {
     create_desktop, get_desktop, bootstrap_reference_outputs, converge
 }
-import from src.outputs {
+import from jacket.outputs {
     apply_output_attach, apply_output_detach, classify_role
 }
-import from src.graph_query { status_dict }
-import from src.policy { enter_mode, exit_mode, policy_state, inject_notification }
-import from src.notifications_policy { wire_notification_source }
-import from src.projection {
+import from jacket.graph_query { status_dict }
+import from jacket.policy { enter_mode, exit_mode, policy_state, inject_notification }
+import from jacket.notifications_policy { wire_notification_source }
+import from jacket.projection {
     register_surface_builder, present_surface_views, reset_projection
 }
 import from examples.reference.components { Bar, MinimalBar }

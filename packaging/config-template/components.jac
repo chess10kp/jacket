@@ -6,21 +6,21 @@
 # where declared; no re-render. Each widget binds a source Signal to a leaf
 # prop via .map — one effect, one patch per change (PLAN §3).
 import from time { strftime, localtime }
-import from src.reactive { signal }
-import from src.osp { Child, Anchored }
-import from src.builders { component, Box, Label, Button, Window, For, row_item, Slider }
-import from src.sources { ticker }
-import from src.wm { get_wm }
-import from src.battery { get_battery, battery_icon }
-import from src.bluetooth { get_bluetooth }
-import from src.audio { get_audio }
-import from src.mpris { get_mpris, format_status }
-import from src.notifications { get_notifications }
-import from src.launcher { get_launcher }
-import from src.tray { get_tray }
-import from src.desktop { get_desktop }
-import from src.policy { active_modes, toggle_mode }
-import from src.projection { present_surface_views }
+import from jacket.reactive { signal }
+import from jacket.osp { Child, Anchored }
+import from jacket.builders { component, Box, Label, Button, Window, For, row_item, Slider }
+import from jacket.sources { ticker }
+import from jacket.wm { get_wm }
+import from jacket.battery { get_battery, battery_icon }
+import from jacket.bluetooth { get_bluetooth }
+import from jacket.audio { get_audio }
+import from jacket.mpris { get_mpris, format_status }
+import from jacket.notifications { get_notifications }
+import from jacket.launcher { get_launcher }
+import from jacket.tray { get_tray }
+import from jacket.desktop { get_desktop }
+import from jacket.policy { active_modes, toggle_mode }
+import from jacket.projection { present_surface_views }
 
 
 # ===========================================================================
@@ -254,7 +254,7 @@ def _tray_activate(key: str) { get_tray().activate(key); }
 # Right-click plumbing. These two named callables are the ONLY things that cross
 # from the GTK popover (built in the seam below) back into the tray source: fetch
 # the parsed dbusmenu tree, and fire an Event when an entry is chosen. Passing
-# them as plain callables keeps the seam free of any src.tray import.
+# them as plain callables keeps the seam free of any jacket.tray import.
 def _tray_fetch_menu(key: str) -> any { return get_tray().load_menu(key); }
 def _tray_fire(key: str, item_id: int) { get_tray().fire(key, item_id); }
 

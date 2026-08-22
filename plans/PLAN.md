@@ -96,7 +96,7 @@ It does **not** yet implement the new thesis:
 
 | Concern | Current implementation | Target |
 |---|---|---|
-| Reactive dependencies | Plain object sets in `src/reactive.jac` | `ReactiveNode` + typed `Feeds` edges |
+| Reactive dependencies | Plain object sets in `jacket/reactive.jac` | `ReactiveNode` + typed `Feeds` edges |
 | Reactive ownership | Cleanup callback attached to a scope | Explicit `Owns` relationship |
 | Propagation | Recursive mark loops + effect queue | Walker over affected computation cone |
 | Desktop state | `_bars` dict and imperative `sync_bars()` | Output/surface/policy graph + convergence |
@@ -589,15 +589,15 @@ Final names may change during T1, but responsibilities must remain local.
 
 | Module | Responsibility |
 |---|---|
-| `src/runtime_graph.jac` | Session/topology node and edge archetypes, IDs, invariants |
-| `src/topology_reactive.jac` | Reactive nodes, `Feeds`, propagation, scheduler |
-| `src/policy.jac` | Base policy, modes, precedence, route/surface reconciliation |
-| `src/graph_query.jac` | Status, why, affected-by walkers and typed results |
-| `src/ipc.jac` | Command parsing and dispatch only |
-| `src/outputs.jac` | Adapter events translated into output graph mutations |
-| `src/builders.jac` | Declarative widgets producing owned bindings/views |
-| `src/adapter.jac` | GTK projection and host integration only |
-| `src/reactive.jac` | Compatibility/public facade if it remains useful |
+| `jacket/runtime_graph.jac` | Session/topology node and edge archetypes, IDs, invariants |
+| `jacket/topology_reactive.jac` | Reactive nodes, `Feeds`, propagation, scheduler |
+| `jacket/policy.jac` | Base policy, modes, precedence, route/surface reconciliation |
+| `jacket/graph_query.jac` | Status, why, affected-by walkers and typed results |
+| `jacket/ipc.jac` | Command parsing and dispatch only |
+| `jacket/outputs.jac` | Adapter events translated into output graph mutations |
+| `jacket/builders.jac` | Declarative widgets producing owned bindings/views |
+| `jacket/adapter.jac` | GTK projection and host integration only |
+| `jacket/reactive.jac` | Compatibility/public facade if it remains useful |
 
 The deep public seam should be small:
 

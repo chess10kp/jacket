@@ -49,10 +49,10 @@ copy patterns from them, do not treat them as the public contract.
 Every shell app follows this shape:
 
 ```jac
-import from src.adapter { install, run_dynamic, apply_css }
-import from src.glib { idle_add }
-import from src.reactive { set_flush_hook }
-import from src.builders { component, Window, Box, Label }
+import from jacket.adapter { install, run_dynamic, apply_css }
+import from jacket.glib { idle_add }
+import from jacket.reactive { set_flush_hook }
+import from jacket.builders { component, Window, Box, Label }
 
 glob MY_CSS: str = """
 window { background: #1e1e2e; }
@@ -120,14 +120,14 @@ Layout:
 | any `.jac` in config dir | debounced `jac check`; on success `request_restart()` |
 | syntax error on save | stderr message; last good bar keeps running |
 
-`src/config.jac` resolves paths; `src/dev_watch.jac` owns the monitors.
+`jacket/config.jac` resolves paths; `jacket/dev_watch.jac` owns the monitors.
 `packaging/config-template/` is the `jacket init` scaffold.
 
 ---
 
 ## 3. Public API by module
 
-### 3.1 `src/reactive.jac` — state graph
+### 3.1 `jacket/reactive.jac` — state graph
 
 Writable and derived values. GTK-free; fully unit-tested.
 
@@ -151,7 +151,7 @@ Writable and derived values. GTK-free; fully unit-tested.
 
 ---
 
-### 3.2 `src/animation.jac` — tweens over reactive props
+### 3.2 `jacket/animation.jac` — tweens over reactive props
 
 GTK-free tween scheduler. Animated values are bindable widget props — the
 builders route them through `effect → adapter.set_prop` like any other reactive
@@ -179,7 +179,7 @@ unregistration, so they may safely start chained tweens.
 edge-margin fallback on windows).
 
 ```jac
-import from src.animation { animated, follow, enter_tween, ease, advance_animations }
+import from jacket.animation { animated, follow, enter_tween, ease, advance_animations }
 
 # Enter animation on mount (notification row)
 Box(
@@ -193,13 +193,13 @@ vol = get_audio().volume;
 Label(text=follow(vol.map(lambda (d: dict) { d["percent"]; }), ms=80, ease_fn=ease.out))
 ```
 
-Re-exported from `src/authoring.jac` for convenience.
+Re-exported from `jacket/authoring.jac` for convenience.
 
 **Stability:** public. Do not depend on `active_tweens` or timer globals.
 
 ---
 
-### 3.2b `src/transition.jac` — popup enter/exit with delayed hide
+### 3.2b `jacket/transition.jac` — popup enter/exit with delayed hide
 
 Binding `hidden = visible.map(not)` unmaps the window the instant `visible`
 flips False, so an exit tween would never be seen. `popup_transition`
@@ -214,7 +214,7 @@ Re-opening mid-exit cancels the pending hide and replays the enter.
 | `tr.shown` | Window-mapped flag — bind `hidden=tr.shown.map(not)` |
 
 ```jac
-import from src.transition { popup_transition }
+import from jacket.transition { popup_transition }
 
 tr = popup_transition(l.visible);          # offset=24, enter 280/200, exit 220/160
 Window(class="launcher", layer="overlay", keyboard=l.visible,
@@ -226,18 +226,18 @@ Window(class="launcher", layer="overlay", keyboard=l.visible,
 Notification rows use the row-level variant of the same pattern: a `closing`
 flag on the notification dict drives per-row exit tweens while the daemon
 holds the row for a grace period (`begin_close`) before real removal — see
-`src/notifications.jac` and `examples/reference/notif_ui.jac`.
+`jacket/notifications.jac` and `examples/reference/notif_ui.jac`.
 
 Headless tests: `tests/transition_tests.jac` drives `advance_animations(ms)`
 and asserts `shown` timing; no GTK required.
 
-Re-exported from `src/authoring.jac` for convenience.
+Re-exported from `jacket/authoring.jac` for convenience.
 
 **Stability:** public.
 
 ---
 
-### 3.3 `src/builders.jac` — authoring surface
+### 3.3 `jacket/builders.jac` — authoring surface
 
 Declarative hyperscript → live `ViewNode` OSP graph. Component bodies run **once**.
 
@@ -284,7 +284,7 @@ hotplug). Destroy the GTK widget separately via `destroy_window(root.widget)`.
 
 ---
 
-### 3.4 `src/osp.jac` — structural graph + walkers
+### 3.4 `jacket/osp.jac` — structural graph + walkers
 
 The widget tree **is** an OSP graph. Authors hold the root `ViewNode` their
 `@component` returns.
@@ -306,7 +306,7 @@ Walker definitions are stable but rarely imported directly.
 
 ---
 
-### 3.5 `src/adapter.jac` — runtime + GTK seam
+### 3.5 `jacket/adapter.jac` — runtime + GTK seam
 
 The **only** supported path to pixels. All `gi` bootstrap lives here (`::py::`).
 
@@ -318,7 +318,7 @@ The **only** supported path to pixels. All `gi` bootstrap lives here (`::py::`).
 | `request_restart()` | Re-exec the process (dev watch / `jacket reload`) |
 | `run(build_roots, app_id)` | Simple: `build_roots()` → list of roots, present all |
 | `run_dynamic(on_activate, app_id)` | Full control in `on_activate` (multi-monitor, hotplug) |
-| `run_with_ipc(on_activate, on_request, app_id)` | IPC server + AGS-style client requests (see `src/ipc.jac`) |
+| `run_with_ipc(on_activate, on_request, app_id)` | IPC server + AGS-style client requests (see `jacket/ipc.jac`) |
 | `list_monitors()` | `Gdk.Monitor` list |
 | `monitor_key(m)` | Stable connector name (`"DP-1"`, …) |
 | `set_window_monitor(w, m)` | Pin layer-shell window to output |
@@ -342,7 +342,7 @@ may use `::py::` against `node.widget` directly. Keep escapes local and small
 
 ---
 
-### 3.6 `src/sources.jac` — clock helper
+### 3.6 `jacket/sources.jac` — clock helper
 
 | Symbol | Role |
 |---|---|
@@ -350,7 +350,7 @@ may use `::py::` against `node.widget` directly. Keep escapes local and small
 
 ---
 
-### 3.6b `src/ipc.jac` — AGS-style request handler
+### 3.6b `jacket/ipc.jac` — AGS-style request handler
 
 Transport is `run_with_ipc` in `adapter.jac` (GApplication `HANDLES_COMMAND_LINE`).
 This module owns the handler registry.
@@ -409,8 +409,8 @@ Private `_` helpers and DBus wiring are internal.
 ## 5. Testing without GTK
 
 ```jac
-import from src.mock_adapter { install_mock }
-import from src.reactive { set_flush_hook, flush }
+import from jacket.mock_adapter { install_mock }
+import from jacket.reactive { set_flush_hook, flush }
 # install_mock() -> records construct/set_prop/insert/move ops
 # set_flush_hook(None) -> synchronous flush in tests
 ```
@@ -433,7 +433,7 @@ Test tiers:
 ```
 shell/
   LIBRARY.md          ← this file (public contract)
-  src/
+  jacket/
     reactive.jac      ← LIBRARY
     animation.jac     ← LIBRARY
     osp.jac           ← LIBRARY
@@ -450,7 +450,7 @@ shell/
   packaging/          ← deploy helper, not API
 ```
 
-Reference shells live under `examples/`, not in the core `src/` import path.
+Reference shells live under `examples/`, not in the core `jacket/` import path.
 
 ---
 
@@ -467,7 +467,7 @@ To grow the library:
 
 1. New widget tags in `adapter.jac` + builder in `builders.jac`
 2. New `get_*()` source modules exposing `Signal`s
-3. Keep reference shells in `examples/`, not in the core `src/` import path
+3. Keep reference shells in `examples/`, not in the core `jacket/` import path
 
 ---
 
@@ -475,27 +475,27 @@ To grow the library:
 
 ```jac
 # Runtime
-import from src.adapter { install, run_dynamic, apply_css, list_monitors,
+import from jacket.adapter { install, run_dynamic, apply_css, list_monitors,
     monitor_key, destroy_window, connect_monitors_changed }
-import from src.glib { idle_add }
-import from src.reactive { set_flush_hook, signal, computed, effect, when, fmt }
-import from src.animation { animated, follow, enter_tween, ease, advance_animations }
-import from src.builders { component, Box, Label, Button, Icon, Window,
+import from jacket.glib { idle_add }
+import from jacket.reactive { set_flush_hook, signal, computed, effect, when, fmt }
+import from jacket.animation { animated, follow, enter_tween, ease, advance_animations }
+import from jacket.builders { component, Box, Label, Button, Icon, Window,
     For, Show, row_item, dispose_tree }
-import from src.osp { ViewNode, query_by_class, flash_class, unflash_class }
-import from src.sources { ticker }
+import from jacket.osp { ViewNode, query_by_class, flash_class, unflash_class }
+import from jacket.sources { ticker }
 
 # Optional services (pick what you need)
-import from src.wm { get_wm }
-import from src.battery { get_battery, battery_icon }
-import from src.power_profiles { get_power_profiles }
-import from src.audio { get_audio }
-import from src.brightness { get_brightness }
-import from src.bluetooth { get_bluetooth }
-import from src.pipewire { get_pipewire }
-import from src.mpris { get_mpris, format_status }
-import from src.notifications { get_notifications }
-import from src.launcher { get_launcher }
-import from src.tray { get_tray }
-import from src.network { get_network }
+import from jacket.wm { get_wm }
+import from jacket.battery { get_battery, battery_icon }
+import from jacket.power_profiles { get_power_profiles }
+import from jacket.audio { get_audio }
+import from jacket.brightness { get_brightness }
+import from jacket.bluetooth { get_bluetooth }
+import from jacket.pipewire { get_pipewire }
+import from jacket.mpris { get_mpris, format_status }
+import from jacket.notifications { get_notifications }
+import from jacket.launcher { get_launcher }
+import from jacket.tray { get_tray }
+import from jacket.network { get_network }
 ```

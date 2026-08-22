@@ -1,5 +1,5 @@
-# calendar_tests.jac — pure month-grid math (src/calendar.jac), fully headless.
-import from src.calendar { days_in_month, month_grid, month_text }
+# calendar_tests.jac — pure month-grid math (jacket/calendar.jac), fully headless.
+import from jacket.calendar { days_in_month, month_grid, month_text }
 
 glob NAMES: list = ["January", "February", "March", "April", "May", "June",
                     "July", "August", "September", "October", "November",

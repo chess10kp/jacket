@@ -9,13 +9,13 @@
 #
 # Every panel degrades to inert content when its source is unavailable
 # (brightness hidden, power row flat, network "offline", media empty).
-import from src.builders { component, Box, Label, Button, Slider }
-import from src.reactive { signal, effect }
-import from src.adapter_api { adapter }
-import from src.power_profiles { get_power_profiles }
-import from src.brightness { get_brightness }
-import from src.network { get_network }
-import from src.mpris { get_mpris, format_status }
+import from jacket.builders { component, Box, Label, Button, Slider }
+import from jacket.reactive { signal, effect }
+import from jacket.adapter_api { adapter }
+import from jacket.power_profiles { get_power_profiles }
+import from jacket.brightness { get_brightness }
+import from jacket.network { get_network }
+import from jacket.mpris { get_mpris, format_status }
 
 # Mirror of power_profiles._PROFILE_ORDER (kept local: no private imports).
 glob PP_ORDER: list = ["balanced", "performance", "power-saver"];

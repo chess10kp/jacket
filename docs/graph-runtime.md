@@ -6,10 +6,10 @@ session graph, `Propagate` walker over `Feeds` edges, exact dependency
 diffing, policy reconciliation, and query commands. For *authoring* widgets,
 read [guide.md](guide.md); for the public API contract, [LIBRARY.md](../LIBRARY.md).
 
-Modules: `src/runtime_graph.jac` (schema), `src/topology_reactive.jac`
-(engine), `src/policy.jac` (modes/reconciliation), `src/outputs.jac` (hotplug),
-`src/projection.jac` (surface → view), `src/graph_query.jac` (queries),
-`src/desktop.jac` (lifecycle), `src/ipc.jac` (command dispatch).
+Modules: `jacket/runtime_graph.jac` (schema), `jacket/topology_reactive.jac`
+(engine), `jacket/policy.jac` (modes/reconciliation), `jacket/outputs.jac` (hotplug),
+`jacket/projection.jac` (surface → view), `jacket/graph_query.jac` (queries),
+`jacket/desktop.jac` (lifecycle), `jacket/ipc.jac` (command dispatch).
 
 ## 1. Overview
 
@@ -33,12 +33,12 @@ CONTROL PATH (mode enter/exit, output attach/detach)
   mount/dispose SurfaceNode + ViewNode, rewire route Feeds gates
 ```
 
-The widget tree (`node ViewNode`, `edge Child` in `src/osp.jac`) remains a
+The widget tree (`node ViewNode`, `edge Child` in `jacket/osp.jac`) remains a
 separate structural projection — data updates never traverse it. Graph state
-is process-local by design: `src/osp_local.jac` detaches the embedded SQL
+is process-local by design: `jacket/osp_local.jac` detaches the embedded SQL
 store so edge hops walk in-memory topology.
 
-## 2. Session lifecycle (`src/desktop.jac`)
+## 2. Session lifecycle (`jacket/desktop.jac`)
 
 | Entry point | What it does |
 |---|---|
@@ -48,7 +48,7 @@ store so edge hops walk in-memory topology.
 | `dispose_session(session)` | Tears down every surface's views (`dispose_surface_views`), then spawns the `CollectSession` walker and deletes its collected nodes **in reverse** (post-order), calling `dispose_reactive_node` on each |
 | `reset_desktop()` | `dispose_session` + `reset_session_store()` + `reset_policy_state()` + `reset_projection()` |
 
-Runtime identity rules (`src/runtime_graph.jac`):
+Runtime identity rules (`jacket/runtime_graph.jac`):
 
 - Every runtime node extends `RuntimeBase` and carries a `session_id`; the
   active session's id is stamped onto each node at creation.
@@ -64,7 +64,7 @@ Runtime identity rules (`src/runtime_graph.jac`):
 session → outputs/policies/modes/sources/bindings, output → surfaces, policy →
 `Requests` → RoutePolicy → `Activates` → RouteNode, mode → `Suppresses`.
 
-## 3. Graph schema (`src/runtime_graph.jac`)
+## 3. Graph schema (`jacket/runtime_graph.jac`)
 
 ### Node types
 
@@ -83,7 +83,7 @@ session → outputs/policies/modes/sources/bindings, output → surfaces, policy
 | `RoutePolicy` | `RuntimeBase` | `route_name` | A named route request |
 | `SuppressionPolicy` | `RuntimeBase` | `route_name`, `owner_mode` | *(declared; suppression is done via `ModeNode -Suppresses->`)* |
 | `OverridePolicy` | `RuntimeBase` | `route_name`, `surface_kind`, `owner_mode` | *(declared; unused by current code)* |
-| `ViewNode` (`src/osp.jac`) | — | `tag`, `widget`, `cleanups` | GTK handle + disposal scope |
+| `ViewNode` (`jacket/osp.jac`) | — | `tag`, `widget`, `cleanups` | GTK handle + disposal scope |
 
 ### Relationships
 
@@ -115,7 +115,7 @@ Because bindings `read()` the `RouteNode` — never the source — a suppressed
 route cannot be re-connected by dynamic dependency tracking: the binding has no
 `Feeds` edge to the source to re-add.
 
-## 4. Propagation (`src/topology_reactive.jac`)
+## 4. Propagation (`jacket/topology_reactive.jac`)
 
 The full path for one source write:
 
@@ -206,7 +206,7 @@ Two layers:
 
 **Reactive cone — graph-native, callback-free.** `create_source`,
 `create_derived`, and `create_binding` all accept an `owner: ReactiveNode` and
-attach an `Owns` edge. The authoring facade (`src/reactive.jac`) wires this
+attach an `Owns` edge. The authoring facade (`jacket/reactive.jac`) wires this
 automatically: a component's scope gets a hidden anchor source
 (`ViewNode.reactive_anchor`) whose cleanup runs `dispose_owned(anchor)`.
 `DisposeOwned` walks `Owns` post-order (`exit` abilities) and for each node
@@ -224,7 +224,7 @@ Output detach (`apply_output_detach`) disposes the output's surface views and
 deletes the `OutputNode`; the next `reconcile_topology` pass sees the smaller
 graph.
 
-## 7. Policy graph (`src/policy.jac`)
+## 7. Policy graph (`jacket/policy.jac`)
 
 The reference session ships one notification source feeding two route gates
 (`ROUTE_NOTIF_POPUP`, `ROUTE_NOTIF_HISTORY`), built by `_make_route`:
@@ -262,10 +262,10 @@ outputs. The same reasoning applies to the queries below.
 UI-visible state (`popup_projection`, `modes_projection`) is written **only**
 by the reconciler from resolved graph state — the graph stays the source of
 truth. The DBus side bridges in via `wire_notification_source`
-(`src/notifications_policy.jac`), which pushes `len(d.notifications())` into
+(`jacket/notifications_policy.jac`), which pushes `len(d.notifications())` into
 the policy source through an effect.
 
-## 8. Query walkers (`src/graph_query.jac`)
+## 8. Query walkers (`jacket/graph_query.jac`)
 
 Queries are read-only graph-traversal **functions** (not spawned walkers — same
 O(graph) spawn cost rationale), producing typed results; dicts are built only
@@ -282,7 +282,7 @@ Dict seams: `status_dict`, `why_dict`, `affected_by_dict`. `why_dict` accepts
 `affected_by_dict` accepts `source:notifications` (fast-pathed off the
 reference handles, avoiding O(graph) `Feeds` scans).
 
-## 9. IPC surface (`src/ipc.jac`)
+## 9. IPC surface (`jacket/ipc.jac`)
 
 Graph commands are the core truth; the legacy getter registry is isolated
 behind a flag:
@@ -290,7 +290,7 @@ behind a flag:
 - `IPC._use_graph` defaults to `True`. When a desktop exists
   (`get_desktop() is not None`), the command verbs `status`, `mode`, `why`,
   `affected-by`, `quit`, `reload` dispatch to
-  `handle_graph_command(argv)` (`src/desktop.jac`) and never touch the legacy
+  `handle_graph_command(argv)` (`jacket/desktop.jac`) and never touch the legacy
   registry.
 - `handle_graph_command` is a bounded dispatcher over a fixed verb table —
   there is no path from IPC to arbitrary walker names or predicates.

@@ -1,14 +1,14 @@
 # t2_selectivity_tests.jac — T2 step B: fine-grained update selectivity (PLAN §5.2).
-import from src.reactive { signal }
-import from src.mock_adapter { install_mock }
-import from src.builders { Box, Label, Window }
-import from src.runtime_graph { reset_session_store, session_store }
-import from src.projection {
+import from jacket.reactive { signal }
+import from jacket.mock_adapter { install_mock }
+import from jacket.builders { Box, Label, Window }
+import from jacket.runtime_graph { reset_session_store, session_store }
+import from jacket.projection {
     register_surface_builder, surface_views, reset_projection
 }
-import from src.runtime_graph { session_outputs, output_surfaces }
-import from src.policy { enter_mode, reconcile_topology }
-import from src.desktop { create_desktop, bootstrap_reference_outputs }
+import from jacket.runtime_graph { session_outputs, output_surfaces }
+import from jacket.policy { enter_mode, reconcile_topology }
+import from jacket.desktop { create_desktop, bootstrap_reference_outputs }
 
 
 def _count_ops(ops: list, kind: str) -> int {

@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Launch the shell.
 #
-# gtk4-layer-shell is loaded globally from src/adapter.jac (ctypes.CDLL before
+# gtk4-layer-shell is loaded globally from jacket/adapter.jac (ctypes.CDLL before
 # `import gi`), so it is in place before GTK opens the Wayland display. No
 # LD_PRELOAD is required.
 #

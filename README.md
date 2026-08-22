@@ -64,21 +64,21 @@ sources (DBus/Gio, Hypr IPC, sysfs) ──writes──▶ Signals
 
 | File | Owns |
 |---|---|
-| `src/reactive.jac` | signal/derived/effect + tri-state scheduler (merged core+scheduler) |
-| `src/osp.jac` | `node ViewNode`, typed `edge Child`, `Dispose`/`Collect` walkers |
-| `src/adapter_api.jac` | swappable adapter handle (holder-obj + `adapter()` accessor) |
-| `src/adapter.jac` | the PyGObject seam (`::py::` gi shim + the adapter contract) |
-| `src/mock_adapter.jac` | recording adapter for headless reconciler tests |
-| `src/transition.jac` | `popup_transition` enter/exit tweens + delayed window hide |
-| `src/builders.jac` | Box/Label/Button/Icon/Window, prop rule, `For`, `Show`, `@component` |
-| `src/glib.jac` | GLib main-loop helpers (idle/timeout/run_for) |
-| `src/sources.jac` | plain imperative sources feeding Signals (clock ticker) |
-| `src/hyprland.jac` / `src/sway.jac` / `src/wm.jac` | workspace sources + per-compositor selector |
-| `src/battery.jac` / `src/audio.jac` / `src/mpris.jac` | UPower / PulseAudio / MPRIS sources |
-| `src/notifications.jac` | `org.freedesktop.Notifications` daemon (we own the name) |
-| `src/tray.jac` | StatusNotifier tray: watcher server + host + item proxies |
-| `src/launcher.jac` | `.desktop` scan + fuzzy app launcher source |
-| `src/ipc.jac` | AGS-style IPC handler registry (`status` / `list` / named getters) |
+| `jacket/reactive.jac` | signal/derived/effect + tri-state scheduler (merged core+scheduler) |
+| `jacket/osp.jac` | `node ViewNode`, typed `edge Child`, `Dispose`/`Collect` walkers |
+| `jacket/adapter_api.jac` | swappable adapter handle (holder-obj + `adapter()` accessor) |
+| `jacket/adapter.jac` | the PyGObject seam (`::py::` gi shim + the adapter contract) |
+| `jacket/mock_adapter.jac` | recording adapter for headless reconciler tests |
+| `jacket/transition.jac` | `popup_transition` enter/exit tweens + delayed window hide |
+| `jacket/builders.jac` | Box/Label/Button/Icon/Window, prop rule, `For`, `Show`, `@component` |
+| `jacket/glib.jac` | GLib main-loop helpers (idle/timeout/run_for) |
+| `jacket/sources.jac` | plain imperative sources feeding Signals (clock ticker) |
+| `jacket/hyprland.jac` / `jacket/sway.jac` / `jacket/wm.jac` | workspace sources + per-compositor selector |
+| `jacket/battery.jac` / `jacket/audio.jac` / `jacket/mpris.jac` | UPower / PulseAudio / MPRIS sources |
+| `jacket/notifications.jac` | `org.freedesktop.Notifications` daemon (we own the name) |
+| `jacket/tray.jac` | StatusNotifier tray: watcher server + host + item proxies |
+| `jacket/launcher.jac` | `.desktop` scan + fuzzy app launcher source |
+| `jacket/ipc.jac` | AGS-style IPC handler registry (`status` / `list` / named getters) |
 | `examples/reference/` | full bar shell: `main.jac`, `components.jac`, popups, `style.jac` |
 | `examples/swaybar/` | scroll/sway status-bar clone with IPC (`./run.sh examples/swaybar/main.jac`) |
 | `examples/minimal/main.jac` | minimal bootstrap (LIBRARY.md §2) |

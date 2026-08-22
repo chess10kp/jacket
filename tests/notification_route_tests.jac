@@ -1,8 +1,8 @@
 # notification_route_tests.jac — Step D UI: popup route gates mount, not visibility.
-import from src.mock_adapter { install_mock }
-import from src.desktop { create_desktop, bootstrap_reference_outputs }
-import from src.policy { enter_mode, exit_mode, popup_route_active }
-import from src.builders { Box, Show, Window, Label }
+import from jacket.mock_adapter { install_mock }
+import from jacket.desktop { create_desktop, bootstrap_reference_outputs }
+import from jacket.policy { enter_mode, exit_mode, popup_route_active }
+import from jacket.builders { Box, Show, Window, Label }
 
 
 def _popup_window() -> any {

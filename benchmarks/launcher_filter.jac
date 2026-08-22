@@ -1,5 +1,5 @@
 # benchmarks/launcher_filter.jac — filter_apps throughput (jac run benchmarks/launcher_filter.jac).
-import from src.launcher { filter_apps }
+import from jacket.launcher { filter_apps }
 import from time { perf_counter }
 
 

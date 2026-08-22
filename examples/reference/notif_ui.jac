@@ -12,10 +12,10 @@
 # container uses the adapter's GestureClick fallback); clicking anywhere closes
 # the row. The ✕ button still works — its own click gesture claims the pointer
 # sequence, so the bubble's gesture never double-fires.
-import from src.builders { component, Box, Label, Button, Window, For, Show, row_item }
-import from src.animation { animated, ease }
-import from src.notifications { get_notifications }
-import from src.policy { popup_route_active }
+import from jacket.builders { component, Box, Label, Button, Window, For, Show, row_item }
+import from jacket.animation { animated, ease }
+import from jacket.notifications { get_notifications }
+import from jacket.policy { popup_route_active }
 
 # Named accessors keep the .map calls lambda-free (and dodge the nested-lambda
 # codegen bug); the close closure stays a single-statement lambda.

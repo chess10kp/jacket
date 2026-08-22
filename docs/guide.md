@@ -47,7 +47,7 @@ def MyWidget(arg: any = None) -> ViewNode {
 - Arguments are plain values passed at construction. If a widget must react to
   changing input, pass a `Signal` instead.
 
-## 3. Reactivity (`src/reactive.jac`)
+## 3. Reactivity (`jacket/reactive.jac`)
 
 | Symbol | Role |
 |---|---|
@@ -70,7 +70,7 @@ count.update(lambda (n: int) { return n + 1; });
 **Authoring rule:** pass signals bare into props. `text=count` updates;
 `text=count()` sets once and never again.
 
-## 4. Widgets and props (`src/builders.jac`)
+## 4. Widgets and props (`jacket/builders.jac`)
 
 Builders: `Box`, `Label`, `Button`, `Icon`, `Entry`, `Slider`, `Window`.
 
@@ -88,7 +88,7 @@ Button(class="ws", label=ws_name, on_click=lambda () { wm.activate(ws_id); })
 ```
 
 Style with CSS classes + your stylesheet (`apply_css` or `theme.css`); query
-and restyle live via `query_by_class` / `flash_class` from `src/osp.jac`.
+and restyle live via `query_by_class` / `flash_class` from `jacket/osp.jac`.
 
 ## 5. Lists: `For`
 
@@ -97,7 +97,7 @@ edit, rows mount/dispose individually. Inside a row, `row_item()` returns the
 current element (so closures stay fresh after reorder).
 
 ```jac
-import from src.builders { For, row_item }
+import from jacket.builders { For, row_item }
 
 @component
 def Workspaces() -> ViewNode {
@@ -144,13 +144,13 @@ Show(bat.charging,
 Multi-monitor bars: build one root per monitor inside `run_dynamic`'s
 activate callback and present each; see `examples/reference/main.jac`.
 
-## 8. Animation (`src/animation.jac`)
+## 8. Animation (`jacket/animation.jac`)
 
 Animated values are ordinary bindable props — the builders route them through
 the same effect → patch path.
 
 ```jac
-import from src.animation { animated, follow, enter_tween, ease }
+import from jacket.animation { animated, follow, enter_tween, ease }
 
 Box(
     opacity=enter_tween(0.0, 1.0, ms=200, ease_fn=ease.out),
@@ -168,13 +168,13 @@ snap, `.to(target, ms, ease_fn, on_done)` animate. `on_done` never fires if
 the tween was cancelled (a `.set()` or retarget), which makes gated follow-ups
 like "hide after exit tween finishes" safe.
 
-## 9. Popup transitions (`src/transition.jac`)
+## 9. Popup transitions (`jacket/transition.jac`)
 
 Binding `hidden = visible.map(not)` unmaps instantly, killing any exit tween.
 `popup_transition` owns the timing for you:
 
 ```jac
-import from src.transition { popup_transition }
+import from jacket.transition { popup_transition }
 
 tr = popup_transition(l.visible);
 Window(class="launcher", layer="overlay", keyboard=l.visible,
@@ -186,13 +186,13 @@ Window(class="launcher", layer="overlay", keyboard=l.visible,
 Open maps immediately and tweens the enter pose; close tweens the reverse then
 unmaps via `on_done`; re-opening mid-exit cancels the pending hide.
 
-## 10. IPC commands (`src/ipc.jac`)
+## 10. IPC commands (`jacket/ipc.jac`)
 
 Register named text getters and drive the shell from the CLI:
 
 ```jac
-import from src.adapter { run_with_ipc }
-import from src.ipc { ipc }
+import from jacket.adapter { run_with_ipc }
+import from jacket.ipc { ipc }
 
 def on_activate(app: any) { ... }
 ipc().register("volume", lambda () { return str(get_audio().volume()); });
@@ -210,8 +210,8 @@ Then `jacket-ctl status`, `jacket-ctl list`, `jacket-ctl volume`,
 Hold the roots you create. To remove a window (e.g. monitor hotplug):
 
 ```jac
-import from src.builders { dispose_tree }
-import from src.adapter { destroy_window }
+import from jacket.builders { dispose_tree }
+import from jacket.adapter { destroy_window }
 
 dispose_tree(root);      # stop effects/handlers for the subtree
 destroy_window(root.widget);
@@ -223,8 +223,8 @@ The reactive core, reconciler, animation, transitions, walkers, and source
 parsers are all testable headlessly with the mock adapter:
 
 ```jac
-import from src.mock_adapter { install_mock }
-import from src.reactive { set_flush_hook, flush }
+import from jacket.mock_adapter { install_mock }
+import from jacket.reactive { set_flush_hook, flush }
 
 install_mock();          # records construct/set_prop/insert/move ops
 set_flush_hook(None);    # synchronous flush

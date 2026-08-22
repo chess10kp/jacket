@@ -14,26 +14,26 @@ if _cfg and _cfg not in sys.path:
 import os;
 # Backend shim: picks wl (Wayland) or gtk (fallback) via JACKET_RENDERER,
 # defaulting to auto — wl whenever a Wayland compositor is reachable.
-import from src.backend {
+import from jacket.backend {
     install, run_with_ipc, apply_css_file, request_restart,
     list_monitors, monitor_key, connect_monitors_changed
 }
-import from src.glib { idle_add }
-import from src.osp_local { run_graph_inprocess }
-import from src.reactive { set_flush_hook }
-import from src.desktop {
+import from jacket.glib { idle_add }
+import from jacket.osp_local { run_graph_inprocess }
+import from jacket.reactive { set_flush_hook }
+import from jacket.desktop {
     create_desktop, get_desktop, converge
 }
-import from src.outputs { apply_output_attach, apply_output_detach, classify_role }
-import from src.graph_query { status_dict }
-import from src.policy { policy_state }
-import from src.notifications_policy { wire_notification_source }
-import from src.projection {
+import from jacket.outputs { apply_output_attach, apply_output_detach, classify_role }
+import from jacket.graph_query { status_dict }
+import from jacket.policy { policy_state }
+import from jacket.notifications_policy { wire_notification_source }
+import from jacket.projection {
     register_surface_builder, present_surface_views
 }
-import from src.ipc { ipc, start_ipc_socket }
-import from src.config { resolve_config, validate_config }
-import from src.dev_watch { watch_config }
+import from jacket.ipc { ipc, start_ipc_socket }
+import from jacket.config { resolve_config, validate_config }
+import from jacket.dev_watch { watch_config }
 import from components { Bar, MinimalBar }
 import from launcher_ui { LauncherWindow }
 import from notif_ui { NotificationLayer }

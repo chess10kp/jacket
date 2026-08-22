@@ -3,11 +3,11 @@
 #   - prop classification (reactive / static / event / lambda)
 #   - For keyed diff op-stream (append/prepend/insert/remove/reverse)
 #   - disposal / leak (subscriber sets return to baseline after unmount)
-import from src.reactive { signal }
-import from src.mock_adapter { install_mock }
-import from src.builders { Box, Label, Button, For, Show, Entry, Slider }
-import from src.osp { Dispose, child_order, sorted_children }
-import from src.topology_reactive { feed_targets }
+import from jacket.reactive { signal }
+import from jacket.mock_adapter { install_mock }
+import from jacket.builders { Box, Label, Button, For, Show, Entry, Slider }
+import from jacket.osp { Dispose, child_order, sorted_children }
+import from jacket.topology_reactive { feed_targets }
 
 
 def count_kind(ops: list, kind: str) -> int {
@@ -187,7 +187,7 @@ test "Show mounts then branch then disposes on flip" {
 
 # --- For live content: rows are keyed+reused, so content must come from a
 # --- per-row Signal (row_item()), not the row_fn snapshot. -------------------
-import from src.builders { row_item }
+import from jacket.builders { row_item }
 
 def dict_for(initial: list) -> list {
     src = signal(initial);

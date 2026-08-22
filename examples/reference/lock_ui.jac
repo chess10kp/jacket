@@ -1,5 +1,5 @@
 # REFERENCE — lockscreen layer (LIBRARY §1 pattern, one consumer of the
-# library). Pairs with src/lockscreen.jac (daemon) — this file is only UI.
+# library). Pairs with jacket/lockscreen.jac (daemon) — this file is only UI.
 #
 # A fullscreen overlay window bound to the lock daemon's state Signal:
 #   - anchor="full" + keyboard=True: covers the output and grabs all input
@@ -7,12 +7,12 @@
 #   - popup_transition drives the exit: on unlock success the layer fades,
 #     THEN unmaps (shown gates the window's hidden prop)
 #   - Entry password mode; Enter submits; typing clears a failure hint
-import from src.builders { component, Box, Label, Window, Entry }
-import from src.animation { animated, ease }
-import from src.transition { popup_transition }
-import from src.reactive { effect }
-import from src.sources { ticker }
-import from src.lockscreen { get_lockscreen }
+import from jacket.builders { component, Box, Label, Window, Entry }
+import from jacket.animation { animated, ease }
+import from jacket.transition { popup_transition }
+import from jacket.reactive { effect }
+import from jacket.sources { ticker }
+import from jacket.lockscreen { get_lockscreen }
 import from time { strftime, localtime }
 
 

@@ -8,7 +8,7 @@
 #
 # Importing adapter.jac only pulls the gi *module* import (no Gtk.init / no
 # display), so the pure classifier runs headless like any other seam parser.
-import from src.adapter { is_construct_only }
+import from jacket.adapter { is_construct_only }
 
 
 test "construct-only props are recognized per tag" {

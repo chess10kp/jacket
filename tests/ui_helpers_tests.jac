@@ -10,8 +10,8 @@ import from examples.reference.notif_ui { _app, _summary, _body, _urgency_class,
 import from examples.reference.launcher_ui {
     _not_visible, _slot_key, _row_label, _row_hidden, _make_slots
 }
-import from src.animation { animated, ease, advance_animations, reset_animation_state }
-import from src.reactive { flush }
+import from jacket.animation { animated, ease, advance_animations, reset_animation_state }
+import from jacket.reactive { flush }
 
 
 test "notif_ui projections read the notification dict fields" {

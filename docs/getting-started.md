@@ -35,10 +35,10 @@ You should see a thin top bar saying "hello". That file is the whole
 bootstrap — read it top to bottom, it is ~30 lines:
 
 ```jac
-import from src.adapter { install, run_dynamic, apply_css }
-import from src.glib { idle_add }
-import from src.reactive { set_flush_hook }
-import from src.builders { component, Window, Box, Label }
+import from jacket.adapter { install, run_dynamic, apply_css }
+import from jacket.glib { idle_add }
+import from jacket.reactive { set_flush_hook }
+import from jacket.builders { component, Window, Box, Label }
 
 glob MY_CSS: str = """
 window { background: #1e1e2e; }
@@ -80,8 +80,8 @@ update themselves:
 
 ```jac
 import from time { strftime, localtime }
-import from src.reactive { computed }
-import from src.sources { ticker }
+import from jacket.reactive { computed }
+import from jacket.sources { ticker }
 
 @component
 def Clock() -> ViewNode {
@@ -104,8 +104,8 @@ Sources are lazy singletons exposing `Signal` fields. They degrade to quiet
 defaults when the backing service is missing, so your bar always comes up:
 
 ```jac
-import from src.wm { get_wm }
-import from src.battery { get_battery, battery_icon }
+import from jacket.wm { get_wm }
+import from jacket.battery { get_battery, battery_icon }
 
 @component
 def Status() -> ViewNode {

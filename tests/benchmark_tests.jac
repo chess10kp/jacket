@@ -1,10 +1,10 @@
 # benchmark_tests.jac — PLAN §5.3 gates: selectivity counts + recorded wall-clock budgets.
-import from src.benchmark {
+import from jacket.benchmark {
     build_500_node_cone, bench_propagation, bench_mode_convergence,
     bench_why_query, bench_dormant_overhead_ratio
 }
-import from src.topology_reactive { source_set, flush }
-import from src.mock_adapter { install_mock }
+import from jacket.topology_reactive { source_set, flush }
+import from jacket.mock_adapter { install_mock }
 
 
 test "cone propagation runs tail binding once per update" {

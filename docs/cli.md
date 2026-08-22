@@ -25,7 +25,7 @@ Extra args after the command are passed through to the entry.
 ```
 
 `JACKET_CONFIG_DIR` / `JACKET_CONFIG_NAME` override resolution (see
-`src/config.jac`).
+`jacket/config.jac`).
 
 ### Watch mode
 

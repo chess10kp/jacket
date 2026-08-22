@@ -7,10 +7,10 @@
 # IN PLACE (same id, new text), each bubble's content reads its per-row Signal
 # via row_item() — the row_fn snapshot would go stale (see builders.jac For).
 # The window hides itself when the list is empty.
-import from src.builders { component, Box, Label, Button, Window, For, Show, row_item }
-import from src.animation { animated, enter_tween, ease }
-import from src.notifications { get_notifications }
-import from src.policy { popup_route_active }
+import from jacket.builders { component, Box, Label, Button, Window, For, Show, row_item }
+import from jacket.animation { animated, enter_tween, ease }
+import from jacket.notifications { get_notifications }
+import from jacket.policy { popup_route_active }
 
 # Named accessors keep the .map calls lambda-free (and dodge the nested-lambda
 # codegen bug); the close closure stays a single-statement lambda.

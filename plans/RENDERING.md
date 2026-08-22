@@ -11,7 +11,7 @@
 | Tier | Choice | Role |
 |---|---|---|
 | Rendering | GTK 4 + gtk4-layer-shell | Layout, pixels, input, IME |
-| Binding | PyGObject (`::py::` shim in `src/adapter.jac`) | One CPython/Jac runtime |
+| Binding | PyGObject (`::py::` shim in `jacket/adapter.jac`) | One CPython/Jac runtime |
 | Host loop | GLib | Scheduler flush + GTK main loop |
 | Product thesis | OSP graph + reactive routing | Source of truth above the adapter |
 
@@ -166,8 +166,8 @@ Spike scope if revisiting:
 | Path | Relevance |
 |---|---|
 | `plans/PLAN.md` §1.2 | Locked stack (GTK terminal projection) |
-| `src/adapter.jac` | Current GTK/PyGObject seam |
-| `src/mock_adapter.jac` | Adapter contract without GTK |
+| `jacket/adapter.jac` | Current GTK/PyGObject seam |
+| `jacket/mock_adapter.jac` | Adapter contract without GTK |
 | `somewm/objects/drawin.c` | Compositor-internal rendering |
 | `somewm/objects/drawable.c` | Cairo surface → wlr buffer |
 | `somewm/lua/wibox/` | Lua widget/layout layer |

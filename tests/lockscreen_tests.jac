@@ -1,12 +1,12 @@
-# lockscreen_tests.jac — headless tests for the session lock (src/lockscreen.jac).
+# lockscreen_tests.jac — headless tests for the session lock (jacket/lockscreen.jac).
 # The pure state machine is checked directly; the daemon runs against an
 # injected fake verifier (never PAM) with results pumped through the real
 # GLib main loop via glib.run_for — the same path the live UI exercises.
-import from src.lockscreen {
+import from jacket.lockscreen {
     check_lock, resolve_lock, clear_error, is_session_open,
     LockDaemon,
 }
-import from src.glib { run_for }
+import from jacket.glib { run_for }
 
 
 # Named verifier fns — never PAM in tests. (A fn RETURNING a lambda trips a

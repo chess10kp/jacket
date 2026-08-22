@@ -7,12 +7,12 @@
 # row slots keyed by index. Keystrokes only patch label/hidden on existing rows
 # (no For insert/remove churn). Visibility is driven by the launcher's `visible`
 # Signal (toggled from the bar).
-import from src.reactive { computed, effect, signal }
-import from src.transition { popup_transition }
-import from src.builders { component, Box, Button, Entry, Window, For, row_item }
-import from src.launcher { get_launcher, filter_apps }
-import from src.adapter_api { adapter }
-import from src.glib { idle_add }
+import from jacket.reactive { computed, effect, signal }
+import from jacket.transition { popup_transition }
+import from jacket.builders { component, Box, Button, Entry, Window, For, row_item }
+import from jacket.launcher { get_launcher, filter_apps }
+import from jacket.adapter_api { adapter }
+import from jacket.glib { idle_add }
 
 # 8 rows keeps the popup well under output height. 30 rows measured 1284px
 # natural height on a 1200px output — the layer surface then stretches
@@ -109,7 +109,7 @@ def LauncherWindow() -> any {
     # flush on the bar's bottom edge) — then slides DOWN out of the bar and
     # fades in. Exit: reverse the tween, i.e. retract back UP into the bar,
     # THEN unmap (shown flips False in the slide tween's on_done) — re-opening
-    # mid-exit cancels the pending hide. See src/transition.jac. Durations are
+    # mid-exit cancels the pending hide. See jacket/transition.jac. Durations are
     # slower than the library defaults (280/220) so the travel reads.
     tr = popup_transition(l.visible, offset=-40.0,
         enter_ms=520.0, enter_fade_ms=400.0,

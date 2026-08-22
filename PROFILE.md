@@ -1,7 +1,7 @@
 # Reconciler hot-path profile — verdicts on PLAN §8 deferred perf items
 
 **Date:** 2026-08-08 · **Branch:** shell-phases-4-5 · **Scope:** measurement only (no
-`src/` or `tests/` changes). Drives the real reconciler headless through the mock
+`jacket/` or `tests/` changes). Drives the real reconciler headless through the mock
 adapter, exactly like `tests/builders_tests.jac`.
 
 This pass exists to answer one question with numbers, not vibes: are any of the
@@ -13,9 +13,9 @@ warranted.** Details below.
 
 ## Methodology
 
-- **Engine under test:** `src/reactive.jac` (signal/effect/scheduler) +
-  `src/builders.jac` `reconcile_list` keyed diff (`create_row` / `remove_row` /
-  `move_row`), driven through `src/mock_adapter.jac` which records every
+- **Engine under test:** `jacket/reactive.jac` (signal/effect/scheduler) +
+  `jacket/builders.jac` `reconcile_list` keyed diff (`create_row` / `remove_row` /
+  `move_row`), driven through `jacket/mock_adapter.jac` which records every
   construct/insert/remove/move/set_prop into `m.ops`. Fully headless — the diff
   hot path needs no GTK/display.
 - **Harness:** `jac run` scripts with a `with entry {}` main (kept in scratchpad,
@@ -103,7 +103,7 @@ discarded, median of 5 cycles:
 
 ## What the shell actually does (grounds the verdicts)
 
-Every `For` in `src/`:
+Every `For` in `jacket/`:
 
 | Site | List | Realistic N | Mutation shape |
 |------|------|------------:|----------------|

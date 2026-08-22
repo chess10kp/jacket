@@ -1,25 +1,25 @@
 # sources_tests.jac — headless tests for the PURE source logic (PLAN §5).
 # Sources own sockets/DBus/subprocesses (untestable here), but their PARSERS
 # are pure text->data functions and carry all the real logic. We test those.
-import from src.hyprland { parse_workspaces, parse_active }
-import from src.sway { parse_sway_workspaces }
-import from src.battery { parse_battery, battery_icon }
-import from src.power_profiles {
+import from jacket.hyprland { parse_workspaces, parse_active }
+import from jacket.sway { parse_sway_workspaces }
+import from jacket.battery { parse_battery, battery_icon }
+import from jacket.power_profiles {
     normalize_profile, parse_profile_properties, parse_powerprofilesctl_output,
     next_profile
 }
-import from src.audio { parse_volume }
-import from src.brightness { parse_brightnessctl_info, parse_brightnessctl_get }
-import from src.pipewire {
+import from jacket.audio { parse_volume }
+import from jacket.brightness { parse_brightnessctl_info, parse_brightnessctl_get }
+import from jacket.pipewire {
     parse_vol_from_desc, parse_device_line, parse_wpctl_status,
     merge_device_volume, resolve_wpctl_id
 }
-import from src.launcher { parse_desktop, filter_apps, score, strip_field_codes }
-import from src.notifications { make_notification, apply_notify, dismiss, mark_closing, is_closing, resolve_timeout, hint_urgency, serialize_active, deserialize_active }
-import from src.mpris { parse_metadata, is_playing, format_status }
-import from src.tray { resolve_item, split_item_key, should_show, pick_icon_name, _pixmap_to_texture, parse_menu_layout, clean_label }
-import from src.network { parse_nmcli_general_status, parse_nmcli_wifi_list, parse_nmcli_active_connection }
-import from src.bluetooth {
+import from jacket.launcher { parse_desktop, filter_apps, score, strip_field_codes }
+import from jacket.notifications { make_notification, apply_notify, dismiss, mark_closing, is_closing, resolve_timeout, hint_urgency, serialize_active, deserialize_active }
+import from jacket.mpris { parse_metadata, is_playing, format_status }
+import from jacket.tray { resolve_item, split_item_key, should_show, pick_icon_name, _pixmap_to_texture, parse_menu_layout, clean_label }
+import from jacket.network { parse_nmcli_general_status, parse_nmcli_wifi_list, parse_nmcli_active_connection }
+import from jacket.bluetooth {
     parse_bluetoothctl_devices, parse_bluetoothctl_show_powered,
     parse_bluetoothctl_paired, primary_device_from_connected,
     parse_bluetoothctl_show, adapter_id_from_path, parse_adapter_state,
@@ -511,7 +511,7 @@ test "hint_urgency defaults to normal, reads the hint" {
 
 
 test "serialize/deserialize roundtrips the active list, drops closing flags" {
-    import from src.notifications { serialize_active, deserialize_active }
+    import from jacket.notifications { serialize_active, deserialize_active }
     active = [
         make_notification(1, "app", "sum", "body", 1, 5000),
         make_notification(2, "app2", "s2", "", 2, 0),

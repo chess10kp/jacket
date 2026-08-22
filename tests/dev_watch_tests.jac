@@ -2,8 +2,8 @@
 # ---------------------------------------------------------------------------
 import os;
 import tempfile;
-import from src.config { config_home, resolve_config, validate_config }
-import from src.dev_watch { is_ignored_watch_path, WATCH_DEBOUNCE_MS }
+import from jacket.config { config_home, resolve_config, validate_config }
+import from jacket.dev_watch { is_ignored_watch_path, WATCH_DEBOUNCE_MS }
 
 
 test "resolve_config builds paths under XDG_CONFIG_HOME/jacket" {

@@ -3,8 +3,8 @@
 # parser, the adapter contract against the WlWidget tree, the flexbox-lite
 # layout pass, and an OFFSCREEN cairo render — the same code paths the live
 # surface runs, minus the wl_shm commit.
-import from src.adapter_api { set_adapter, adapter }
-import from src.wl_adapter {
+import from jacket.adapter_api { set_adapter, adapter }
+import from jacket.wl_adapter {
     WlAdapter, wl_construct, wl_is_construct_only,
     parse_css, _color, paint_tree, offscreen_surface, offscreen_context,
     wl_apply_css, wl_inject_button, wl_inject_motion, wl_inject_scroll,
@@ -308,7 +308,7 @@ test "slider scroll steps value and fires on_value_change with get_value" {
 # surface factory hands out DummySurfaces when no display is connected, so
 # state transitions and geometry are assertable without wl objects.
 # ===========================================================================
-import from src.wl_adapter {
+import from jacket.wl_adapter {
     popover_geometry, wl_attach_click_popover, wl_attach_hover_popover,
     wl_list_monitors, wl_monitor_key, wl_connect_monitors_changed,
     _remove_output, _monitors_changed, _popovers, _conn,
@@ -517,11 +517,11 @@ test "window lifecycle: set_visible(False) unmaps surfaces, True remaps" {
 # W6 — parity: tray PNG textures on wl, Image tag, css-file load, backend
 # selection. All headless.
 # ===========================================================================
-import from src.tray { _pixmap_to_texture }
-import from src.backend {
+import from jacket.tray { _pixmap_to_texture }
+import from jacket.backend {
     backend_name, reset_backend_cache,
 }
-import from src.wl_adapter { _glob_styles }
+import from jacket.wl_adapter { _glob_styles }
 
 ::py::
 import os as _os
@@ -612,9 +612,9 @@ def _renderer_for(val: str) -> str {
 }
 
 test "backend selection matrix: explicit picks + auto fallback to gtk headless" {
-    import from src.adapter_api { set_adapter }
+    import from jacket.adapter_api { set_adapter }
     set_adapter(WlAdapter());                             # restore afterwards
-    assert _renderer_for("gtk") == "src.adapter";
-    assert _renderer_for("wl") == "src.wl_adapter";
-    assert _renderer_for("auto") == "src.adapter";         # no WAYLAND_DISPLAY
+    assert _renderer_for("gtk") == "jacket.adapter";
+    assert _renderer_for("wl") == "jacket.wl_adapter";
+    assert _renderer_for("auto") == "jacket.adapter";         # no WAYLAND_DISPLAY
 }

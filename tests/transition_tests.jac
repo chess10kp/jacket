@@ -2,9 +2,9 @@
 # popup_transition is the shared exit-animation state machine: `shown` must
 # stay True while the exit tween plays, flip False only when it completes,
 # and a mid-exit reopen must cancel the pending hide.
-import from src.transition { popup_transition }
-import from src.animation { advance_animations, active_tween_count, reset_animation_state }
-import from src.reactive { signal, flush }
+import from jacket.transition { popup_transition }
+import from jacket.animation { advance_animations, active_tween_count, reset_animation_state }
+import from jacket.reactive { signal, flush }
 
 
 test "open maps the window and tweens the enter pose" {

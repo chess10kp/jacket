@@ -1,13 +1,13 @@
 # animation_tests.jac — headless tests for the GTK-free tween scheduler.
-import from src.animation {
+import from jacket.animation {
     animated, follow, enter_tween, ease, advance_animations,
     active_tween_count, reset_animation_state,
 }
-import from src.reactive {
+import from jacket.reactive {
     signal, computed, effect, create_scope, enter_scope, exit_scope, flush,
 }
-import from src.mock_adapter { install_mock, delta_ops, count_kind }
-import from src.builders { Label, Box }
+import from jacket.mock_adapter { install_mock, delta_ops, count_kind }
+import from jacket.builders { Label, Box }
 
 
 test "animated starts at initial value" {

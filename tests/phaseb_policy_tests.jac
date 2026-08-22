@@ -7,16 +7,16 @@
 #                   -Feeds-> BindingNode; ModeNode -Suppresses-> RoutePolicy
 #   feed gating     suppression removes source->RouteNode Feeds; exit restores
 #   reconcile       ReconcileTopology mounts/disposes ONLY the changed surface
-import from src.desktop { create_desktop, bootstrap_reference_outputs }
-import from src.policy {
+import from jacket.desktop { create_desktop, bootstrap_reference_outputs }
+import from jacket.policy {
     enter_mode, exit_mode, inject_notification, policy_state,
     ROUTE_NOTIF_POPUP, ROUTE_NOTIF_HISTORY
 }
-import from src.runtime_graph {
+import from jacket.runtime_graph {
     session_store, session_policies, session_modes,
     Requests, Activates, Suppresses, Feeds, RoutePolicy
 }
-import from src.topology_reactive { feed_sources }
+import from jacket.topology_reactive { feed_sources }
 
 
 # --- §6 non-bypass: the binding has a Feeds edge to the RouteNode, not source --

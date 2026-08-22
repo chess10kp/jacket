@@ -7,12 +7,12 @@
 # row slots keyed by index. Keystrokes only patch label/hidden on existing rows
 # (no For insert/remove churn). Visibility is driven by the launcher's `visible`
 # Signal (toggled from the bar).
-import from src.reactive { computed, effect }
-import from src.animation { animated, ease }
-import from src.builders { component, Box, Button, Entry, Window, For, row_item }
-import from src.launcher { get_launcher, filter_apps }
-import from src.adapter_api { adapter }
-import from src.glib { idle_add }
+import from jacket.reactive { computed, effect }
+import from jacket.animation { animated, ease }
+import from jacket.builders { component, Box, Button, Entry, Window, For, row_item }
+import from jacket.launcher { get_launcher, filter_apps }
+import from jacket.adapter_api { adapter }
+import from jacket.glib { idle_add }
 
 # 8 rows keeps the popup well under output height. 30 rows measured 1284px
 # natural height on a 1200px output — the layer surface then stretches
