@@ -124,12 +124,22 @@ adapter untouched-and-working.
   wl_pointer/wl_keyboard handlers route into it. `grab_focus` added to all three
   adapters; launcher_ui routes focus/text through `adapter()`.
 
-**W5 — Popups, monitors, lifecycle**
+**W5 — Popups, monitors, lifecycle** *(implemented; live multi-monitor smoke
+pending compositor — environment-blocked)*
 - Second surface class for popovers (launcher window, notif toasts): own
   layer-surface, corner anchoring, dismiss-on-click-outside.
 - Monitor hotplug: rebuild bars per output (port outputs.jac behavior);
   `set_window_monitor` equivalent.
 - Exit: multi-monitor reference shell survives `hyprctl output create/remove`.
+- Status: PopoverSurface (overlay layer, exclusive -1, exact size, anchor +
+  margins from pure `popover_geometry`, flips when clipped); click-toggle +
+  hover show/hide-delay popovers via the adapter contract; press-outside and
+  Escape dismiss. Hotplug: wl_output name/done events give connector names,
+  registry global_remove destroys that output's surfaces, presented windows
+  re-map on change; wl_list_monitors/wl_monitor_key/wl_connect_monitors_changed
+  mirror the Gdk trio. set_visible(False) unmaps layer surfaces, True remaps.
+  Headless: surface factory hands out DummySurfaces so all state transitions
+  are testable without a compositor.
 
 **W6 — Parity + flip**
 - Tray icons (PNG-first path), notification action buttons, MPRIS controls —
@@ -164,6 +174,8 @@ Only if the narrow pangocairo slice or GLib itself becomes the next tax:
 | Window layout gives EVERY visible child the full content area (GTK set_child analogue) → overlapping siblings | Hit-test picks the last sibling containing the point; bars must keep ONE root Box. Enforced by convention, not code. |
 | pywayland proxy identity assumed stable across pointer-enter delivery | `_surf_for_wl` falls back to matching wire object ids. |
 | xkb keymap fd is consumed by the handler | `_on_kb_keymap` reads + closes the fd exactly once; compositor sends a fresh one per state change. |
+| Connector names need wl_output v3+ name event | Bound at min(version, 4); fallback "output-N" until the event arrives. |
+| Popovers must not fan out across outputs on hotplug | WlPopupWindow.is_popup skips both map_surfaces fan-out and hotplug remap; popup lives on its anchor's output only. |
 | Scope creep toward "build a toolkit" | Hard rule: features land on GTK adapter first; WlAdapter chases parity, never new widgets. |
 | Jac/pywayland interop friction (like the gi OverridesProxyModule bug) | All pywayland objects stay inside `::py::` blocks in wl_adapter.jac; only plain callables cross upward — same discipline as adapter.jac Phase-0 finding. |
 

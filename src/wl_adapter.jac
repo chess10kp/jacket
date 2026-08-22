@@ -79,7 +79,8 @@ class WlConn:
     compositor = None
     shm = None
     layer_shell = None
-    outputs = {}            # wl_output proxy -> name str (assigned on done/global)
+    outputs = {}            # wl_output proxy -> connector name ("DP-1")
+    output_reg = {}         # registry global name -> wl_output proxy
     watch_sid = None
     seat = None
     pointer = None
@@ -99,8 +100,96 @@ def _on_global(registry, name, iface, version):
         _conn.seat = registry.bind(name, _WlSeat, min(version, 5))
         _bind_seat()
     elif iface == "wl_output":
-        out = registry.bind(name, _WlOutput, min(version, 3))
-        _conn.outputs[out] = "output-%d" % len(_conn.outputs)
+        out = registry.bind(name, _WlOutput, min(version, 4))
+        out.dispatcher["name"] = _on_output_name
+        out.dispatcher["done"] = _on_output_done
+        _conn.outputs[out] = "output-%d" % len(_conn.outputs)   # until .name arrives
+        _conn.output_reg[name] = out
+
+
+def _on_global_remove(registry, name):
+    out = _conn.output_reg.pop(name, None)
+    if out is not None:
+        _remove_output(out)
+
+
+def _on_output_name(out, name):
+    if name:
+        _conn.outputs[out] = str(name)      # connector name, e.g. "DP-1"
+
+
+def _on_output_done(out):
+    # geometry/name batch complete — safe point to (re)evaluate monitors.
+    _monitors_changed()
+
+
+def _remove_output(out):
+    _conn.outputs.pop(out, None)
+    try:
+        out.release()
+    except Exception:
+        pass
+    for w in list(_windows):
+        keep = [s for s in w.surfaces if s.output is not out]
+        if len(keep) != len(w.surfaces):
+            for s in w.surfaces:
+                if s.output is out:
+                    s.destroy()
+            w.surfaces = keep
+    _monitors_changed()
+
+
+# --- monitor hotplug API (mirrors adapter.jac's Gdk monitor trio) -----------
+_monitor_cbs = []
+_monitor_scheduled = [False]
+
+
+def _monitors_changed():
+    if _monitor_scheduled[0]:
+        return
+    _monitor_scheduled[0] = True
+
+    def _fire():
+        _monitor_scheduled[0] = False
+        for w in list(_windows):
+            if w.presented and not w.is_popup:
+                w.map_surfaces()            # idempotent: skips existing outputs
+        for cb in list(_monitor_cbs):
+            try:
+                cb()
+            except Exception:
+                import traceback
+                traceback.print_exc()
+        return False
+
+    if _loop.get("loop") is not None:
+        _GLib.idle_add(_fire)
+    else:
+        _fire()
+
+
+def wl_list_monitors():
+    """Connected wl_output proxies (the Wl analogue of adapter.list_monitors)."""
+    return list(_conn.outputs.keys())
+
+
+def wl_monitor_key(m):
+    """Stable per-monitor key — the connector name ("DP-1"), like GTK."""
+    return _conn.outputs.get(m, "")
+
+
+def wl_connect_monitors_changed(cb):
+    """Fire cb() on monitor hotplug (Wl analogue of connect_monitors_changed).
+    Returns a disconnector."""
+    _monitor_cbs.append(cb)
+
+    def _off():
+        try:
+            _monitor_cbs.remove(cb)
+        except ValueError:
+            pass
+
+    return _off
 
 
 def _pump(fd=None, cond=None):
@@ -159,6 +248,8 @@ def connect_wayland():
 _ptr = {"surf": None, "x": 0.0, "y": 0.0, "hover": None, "press": None}
 _kbstate = {"ctx": None, "keymap": None, "state": None, "surface": None}
 _surf_by_wl = {}            # wl_surface proxy -> BarSurface
+_popovers = []              # list[PopoverHandle]
+_hover_watchers = []        # fn(hovered_widget) — hover popovers subscribe
 
 
 def _bind_seat():
@@ -272,6 +363,8 @@ def _on_kb_key(kb, serial, msec, key, state):
         text = st.key_get_string(kc) or ""
     except Exception:
         return
+    if sym_name == "Escape" and _escape_closes_popovers():
+        return
     _dispatch_key(entry, sym_name, text)
 
 
@@ -325,6 +418,12 @@ def _set_hover(widget):
     if widget is not None:
         widget.hovered = True
         widget.resolve_style()   # apply :hover overrides without waiting for paint
+    for watcher in list(_hover_watchers):
+        try:
+            watcher(widget)
+        except Exception:
+            import traceback
+            traceback.print_exc()
     return True
 
 
@@ -398,6 +497,7 @@ def wl_inject_button(root, x, y, button, pressed):
     hit = hit_test(root, x, y)
     win = root if isinstance(root, WlWindow) else _window_of(root)
     if pressed:
+        _dismiss_outside(win, hit)
         if win is not None:
             win.focused = hit if (hit is not None and hit.tag == "Entry") else None
         _ptr["press"] = hit
@@ -421,7 +521,10 @@ def wl_inject_scroll(root, x, y, dy):
 def wl_inject_key(root, name_or_char, pressed=True):
     """Headless keyboard: route one key into the focused Entry of this tree.
     name_or_char is an xkb keysym name ('Escape', 'Return', 'BackSpace') or a
-    literal character ('a', '5', ' '). No-op when nothing is focused."""
+    literal character ('a', '5', ' '). Escape closes open click-popovers first.
+    No-op when nothing is focused."""
+    if pressed and name_or_char == "Escape" and _escape_closes_popovers():
+        return True
     win = root if isinstance(root, WlWindow) else _window_of(root)
     entry = getattr(win, "focused", None) if win is not None else None
     if not pressed or not isinstance(entry, WlWidget):
@@ -559,7 +662,15 @@ class WlWidget:
             return 0.0
 
     def set_visible(self, v):
+        was = not bool(self.props.get("hidden"))
         self.props["hidden"] = not v
+        if isinstance(self, WlWindow) and was != bool(v):
+            # lifecycle: hiding a presented window tears down its layer
+            # surfaces; showing a presented window maps them again.
+            if v:
+                self.map_surfaces()
+            else:
+                self.unmap_surfaces()
         _dirty_parent_surfaces(self)
 
     def destroy(self):
@@ -583,12 +694,17 @@ class WlWidget:
         self.style = st
 
 
+_windows = []               # every live WlWindow (bars AND popup windows)
+
+
 class WlWindow(WlWidget):
     def __init__(self, cprops=None):
         super().__init__("Window", cprops)
         self.surfaces = []          # list[BarSurface]
         self.presented = False
         self.focused = None         # focused WlWidget (Entries only today)
+        self.is_popup = False       # WlPopupWindow overrides mapping
+        _windows.append(self)
 
     def _autofocus(self):
         kb = str(self.props.get("keyboard") or "none")
@@ -606,15 +722,18 @@ class WlWindow(WlWidget):
         self.presented = True
         want = str(self.props.get("monitor") or "")
         for out in list(_conn.outputs):
+            if self.is_popup:
+                continue
             name = _conn.outputs[out]
             if want and name != want:
                 continue
             if any(s.output is out for s in self.surfaces):
                 continue
-            self.surfaces.append(BarSurface(self, out))
-        # blocking roundtrip is safe here: surfaces are only mapped before the
-        # loop spins (or from handlers already on the main thread).
-        _conn.display.roundtrip()
+            self.surfaces.append(_new_surface(self, out))
+        if _conn.display is not None:
+            # blocking roundtrip is safe here: surfaces are only mapped before
+            # the loop spins (or from handlers already on the main thread).
+            _conn.display.roundtrip()
         self._autofocus()
 
     def unmap_surfaces(self):
@@ -826,6 +945,311 @@ class BarSurface:
             self.canvas.destroy()
             self.canvas = None
         _dirty.discard(self)
+
+
+def _new_surface(win, output):
+    """Surface factory. Real layer surface when connected; inert dummy when
+    headless so window/hotplug/lifecycle logic stays fully testable."""
+    if isinstance(win, WlPopupWindow):
+        cls = PopupSurface
+    else:
+        cls = BarSurface
+    if _conn.display is None or _conn.compositor is None:
+        return DummySurface(win, output)
+    return cls(win, output)
+
+
+class DummySurface:
+    """Headless stand-in with the BarSurface surface contract, no wl objects."""
+
+    def __init__(self, win, output):
+        self.win = win
+        self.output = output
+        self.canvas = None
+        self.mapped = True
+
+    def output_name(self):
+        return _conn.outputs.get(self.output, "")
+
+    def draw(self):
+        pass
+
+    def destroy(self):
+        _dirty.discard(self)
+        if _ptr["surf"] is self:
+            _ptr["surf"] = None
+
+
+# ===========================================================================
+# Popovers (W5) — one layer surface per open panel, anchored relative to the
+# trigger widget's laid-out rect. Mirrors adapter.jac's py_attach_* semantics:
+#   click mode: anchor click toggles; press outside (or Escape) dismisses
+#   hover mode: show_delay_ms after pointer enters the anchor, hide_delay_ms
+#               after it leaves BOTH anchor and panel
+# Geometry lives in popover_geometry() — pure and headless-testable. When no
+# display is connected the handle still tracks state so tests can assert
+# open/close transitions without wl objects.
+# ===========================================================================
+class WlPopupWindow(WlWindow):
+    """Root holder for a popover's content tree. Exists so set_prop repaints
+    route through the normal _win_surfaces_of walk (isinstance WlWindow)."""
+
+    def __init__(self):
+        super().__init__({})
+        self.is_popup = True
+        self.props["layer"] = "overlay"
+        self.props["keyboard"] = "none"
+        self.props["exclusive"] = False
+
+    def present(self):
+        pass                          # mapping is owned by its PopoverHandle
+
+    def map_surfaces(self):
+        pass                          # hotplug must not fan popups across outputs
+
+
+class PopoverSurface(BarSurface):
+    """Exact-sized layer surface pinned near an anchor widget rect.
+    exclusive_zone = -1 (the swaybar overlay trick): never displaced by bars."""
+
+    def __init__(self, win, output, geom):
+        super().__init__(win, output)
+        a = _ZwlrLayerSurfaceV1.anchor
+        ls = self.lsurf
+        bits = 0
+        for edge in geom["anchors"]:
+            bits |= {"top": a.top, "bottom": a.bottom,
+                     "left": a.left, "right": a.right}[edge]
+        ls.set_anchor(bits)
+        for edge, val in geom["margins"].items():
+            ls.set_margin(_ANCHORS[edge], int(val))
+        ls.set_exclusive_zone(-1)
+        self.desired_h = geom["h"]
+        ls.set_size(geom["w"], geom["h"])
+        self.pending_cfg = None
+        self.wl_surface.commit()
+
+
+def popover_geometry(anchor_rect, out_w, out_h, content_w, content_h,
+                     position="bottom", gap=4):
+    """Pure placement: one vertical + one horizontal anchor/margin pair for the
+    popup layer surface. position: 'top'|'bottom'|'left'|'right' (first part =
+    placement side relative to the anchor), optional corner/alignment second
+    part ('bottom-right', 'top-left', ...). Flips inside the output when the
+    preferred side would clip."""
+    ax, ay, aw, ah = anchor_rect
+    w = max(1, int(content_w))
+    h = max(1, int(content_h))
+    parts = str(position or "bottom").split("-")
+    first = parts[0] if parts[0] in ("top", "bottom", "left", "right") else "bottom"
+    second = parts[1] if len(parts) > 1 else None
+    anchors, margins = [], {}
+
+    def pin(edge, m):
+        anchors.append(edge)
+        margins[edge] = max(0, int(m))
+
+    if first in ("top", "bottom"):
+        if first == "bottom":
+            below = ay + ah + gap
+            if below + h > out_h and ay - gap - h >= 0:
+                pin("top", ay - gap - h)              # flip up when clipped
+            else:
+                pin("top", below)
+        else:
+            above_end = ay - gap
+            if above_end - h < 0 and ay + ah + gap + h <= out_h:
+                pin("top", ay + ah + gap)             # flip down when clipped
+            else:
+                pin("top", above_end - h)
+        if second == "right":                          # horizontal alignment
+            pin("right", out_w - (ax + aw))
+        elif second == "left":
+            pin("left", ax)
+        else:
+            pin("left", min(ax, max(0, out_w - w)))   # clamp fully on-output
+    else:                                              # side placement
+        if first == "right":
+            re_ = ax + aw + gap
+            if re_ + w > out_w and ax - gap - w >= 0:
+                pin("right", out_w - (ax - gap))      # flip to the left side
+            else:
+                pin("left", re_)
+        else:
+            le_ = ax - gap
+            if le_ - w < 0 and ax + aw + gap + w <= out_w:
+                pin("left", ax + aw + gap)            # flip to the right side
+            else:
+                pin("left", le_ - w)
+        if second == "bottom":                         # vertical alignment
+            pin("bottom", out_h - (ay + ah))
+        else:
+            pin("top", ay)
+    return {"anchors": anchors, "margins": margins, "w": w, "h": h}
+
+
+class PopoverHandle:
+    """State machine for one Anchored edge. Owns the popup window holding the
+    content tree plus its (single) layer surface while open."""
+
+    def __init__(self, anchor, content, position="bottom", mode="click",
+                 show_delay_ms=100, hide_delay_ms=200):
+        self.anchor = anchor
+        self.content = content
+        self.position = position
+        self.mode = mode
+        self.show_delay_ms = max(0, int(show_delay_ms))
+        self.hide_delay_ms = max(0, int(hide_delay_ms))
+        self.open = False
+        self.surface = None
+        self.last_geom = None           # last computed placement (tests)
+        self.win = WlPopupWindow()
+        self.win.insert_child(content, 0)
+        self._sid = None                # pending GLib timeout
+
+    # -- helpers -----------------------------------------------------------
+    @staticmethod
+    def _subtree_has(root, w):
+        if w is None:
+            return False
+        stack = [root]
+        while stack:
+            n = stack.pop()
+            if n is w:
+                return True
+            stack.extend(n.children)
+        return False
+
+    def covers(self, w):
+        return (self._subtree_has(self.anchor, w)
+                or self._subtree_has(self.content, w))
+
+    def _cancel_timer(self):
+        if self._sid is not None:
+            try:
+                _GLib.source_remove(self._sid)
+            except Exception:
+                pass
+            self._sid = None
+
+    def _after(self, ms, fn):
+        self._cancel_timer()
+        loop = _loop.get("loop")
+        if loop is not None and ms > 0:
+            def _run():
+                self._sid = None
+                fn()
+                return False
+            self._sid = _GLib.timeout_add(ms, _run)
+        else:
+            fn()                        # headless / zero delay: act now
+
+    # -- transitions ---------------------------------------------------------
+    def show(self):
+        if self.open:
+            return
+        self.open = True
+        win = _window_of(self.anchor)
+        surf = None
+        if isinstance(win, WlWindow):
+            if _ptr.get("surf") in win.surfaces and _ptr["surf"] is not None:
+                surf = _ptr["surf"]
+            else:
+                cands = [s for s in win.surfaces if s.canvas is not None]
+                surf = cands[0] if cands else None
+        if surf is None or surf.canvas is None:
+            return                      # headless: state-only, no wl objects
+        cw, ch = natural_size_full(self.content)
+        geom = popover_geometry(self.anchor.rect, surf.canvas.w, surf.canvas.h,
+                                cw, ch, self.position)
+        self.last_geom = geom
+        s = PopupSurface(self.win, surf.output, geom)
+        self.surface = s
+        self.win.surfaces.append(s)
+
+    def close(self):
+        self._cancel_timer()
+        if not self.open and self.surface is None:
+            return
+        self.open = False
+        for s in list(self.win.surfaces):
+            s.destroy()
+        self.win.surfaces = []
+        self.surface = None
+
+    def toggle(self):
+        self.close() if self.open else self.show()
+
+    def on_hover(self, hovered):
+        if self.mode != "hover":
+            return
+        if self.covers(hovered):
+            self._cancel_timer()
+            if not self.open:
+                self._after(self.show_delay_ms, self.show)
+        elif self.open:
+            self._after(self.hide_delay_ms, self.close)
+        else:
+            self._cancel_timer()
+
+
+def _dismiss_outside(win, hit):
+    """Press-outside dismissal for open click-popovers of this window."""
+    for ph in list(_popovers):
+        if ph.open and ph.mode == "click" and ph.win is not None \
+                and _window_of(ph.anchor) is win and not ph.covers(hit):
+            ph.close()
+
+
+def _escape_closes_popovers():
+    opened = [p for p in _popovers if p.open and p.mode == "click"]
+    for p in opened:
+        p.close()
+    return bool(opened)
+
+
+def wl_attach_click_popover(anchor, content, position="bottom"):
+    """Click-toggle popover (mirrors py_attach_click_popover). Returns cleanup."""
+    ph = PopoverHandle(anchor, content, position, "click")
+    hid = wl_connect(anchor, "on_click", lambda *a: ph.toggle())
+    _popovers.append(ph)
+
+    def cleanup():
+        try:
+            wl_disconnect(anchor, hid)
+        except Exception:
+            pass
+        ph.close()
+        try:
+            _popovers.remove(ph)
+        except ValueError:
+            pass
+
+    return cleanup
+
+
+def wl_attach_hover_popover(anchor, content, position="bottom",
+                            show_delay_ms=100, hide_delay_ms=200):
+    """Hover popover with show/hide delays (mirrors py_attach_hover_popover).
+    Returns cleanup."""
+    ph = PopoverHandle(anchor, content, position, "hover",
+                       show_delay_ms, hide_delay_ms)
+    _popovers.append(ph)
+    _hover_watchers.append(ph.on_hover)
+
+    def cleanup():
+        ph._cancel_timer()
+        ph.close()
+        try:
+            _popovers.remove(ph)
+        except ValueError:
+            pass
+        try:
+            _hover_watchers.remove(ph.on_hover)
+        except ValueError:
+            pass
+
+    return cleanup
 
 
 # ===========================================================================
@@ -1108,6 +1532,9 @@ def wl_is_construct_only(tag, prop):
 def wl_set_prop(w, name, value):
     if w is None:
         return
+    if name == "hidden":
+        w.set_visible(not bool(value))       # lifecycle: unmap/remap windows
+        return
     w.props[name] = value
     if name == "class":
         w.classes = value if isinstance(value, str) else " ".join(value)
@@ -1260,10 +1687,11 @@ obj WlAdapter {
     def grab_focus(w: any) -> bool { return bool(wl_grab_focus(w)); }
     def attach_hover_popover(anchor: any, content: any, position: str,
                              show_delay_ms: int, hide_delay_ms: int) -> any {
-        return None;    # W4/W5: layer-surface popups
+        return wl_attach_hover_popover(anchor, content, position,
+                                       show_delay_ms, hide_delay_ms);
     }
     def attach_click_popover(anchor: any, content: any, position: str) -> any {
-        return None;
+        return wl_attach_click_popover(anchor, content, position);
     }
 }
 

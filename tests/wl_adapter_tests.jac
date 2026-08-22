@@ -302,3 +302,212 @@ test "slider scroll steps value and fires on_value_change with get_value" {
     got = vals[-1];
     assert got > 45 and got < 55;               # ~50%, snapped to step of 5
 }
+
+# ===========================================================================
+# W5 — popovers + monitor hotplug + window lifecycle. All headless: the
+# surface factory hands out DummySurfaces when no display is connected, so
+# state transitions and geometry are assertable without wl objects.
+# ===========================================================================
+import from src.wl_adapter {
+    popover_geometry, wl_attach_click_popover, wl_attach_hover_popover,
+    wl_list_monitors, wl_monitor_key, wl_connect_monitors_changed,
+    _remove_output, _monitors_changed, _popovers, _conn,
+}
+
+def _fake_out() -> any {
+    return object();
+}
+
+def _w5_bar() -> any {
+    set_adapter(WlAdapter());
+    a = adapter();
+    bar = a.construct("Window", {"height": 32});
+    row = a.construct("Box", {"orientation": "H"});
+    btn = a.construct("Button", {"class": "btn", "label": "tray"});
+    spacer = a.construct("Box", {"orientation": "H", "expand": True});
+    a.insert(row, btn, 0);
+    a.insert(row, spacer, 1);
+    a.insert(bar, row, 0);
+    wl_apply_css(".btn { background: #333344; padding: 4px 8px; }");
+    paint_tree(offscreen_context(offscreen_surface(200, 32)), bar, 200, 32);
+    return bar;
+}
+
+test "popover geometry places below anchor and clamps horizontally" {
+    g = popover_geometry((100, 100, 80, 24), 400, 600, 120, 90, "bottom");
+    anchors = g["anchors"];
+    m = g["margins"];
+    assert "top" in anchors and "left" in anchors;
+    assert anchors == ["top", "left"];
+    assert m["top"] == 128;                    # ay+ah+gap = 100+24+4
+    assert m["left"] == 100;                   # aligns with anchor's left edge
+    assert g["w"] == 120 and g["h"] == 90;
+
+    # corner form: right edge of popup aligns with right edge of anchor
+    gc = popover_geometry((300, 100, 80, 24), 400, 600, 120, 90, "bottom-right");
+    ma = gc["margins"];
+    assert "right" in gc["anchors"];
+    assert ma["right"] == 400 - 380;
+
+    # default placement clamps the popup fully on-output near the right edge
+    gx = popover_geometry((350, 100, 40, 20), 400, 600, 120, 90, "bottom");
+    mx = gx["margins"];
+    assert mx["left"] == 280;                  # min(ax, out_w - w)
+}
+
+test "popover geometry flips up/down/sideways when clipped" {
+    # bottom would clip -> flip up above the anchor
+    gu = popover_geometry((100, 260, 80, 24), 400, 300, 120, 90, "bottom");
+    mu = gu["margins"];
+    assert mu["top"] == 260 - 4 - 90;
+    # top would clip -> flip down below the anchor
+    gd = popover_geometry((100, 6, 80, 24), 400, 300, 120, 90, "top");
+    md = gd["margins"];
+    assert md["top"] == 6 + 24 + 4;
+    # right side would clip -> flip to the left side of the anchor
+    gl = popover_geometry((370, 100, 20, 24), 400, 300, 60, 40, "right");
+    ml = gl["margins"];
+    assert "right" in gl["anchors"];
+    assert ml["right"] == 400 - (370 - 4);
+}
+
+test "click popover toggles on anchor clicks; outside press dismisses" {
+    bar = _w5_bar();
+    a = adapter();
+    panel = a.construct("Box", {"orientation": "V"});
+    lbl = a.construct("Label", {});
+    a.set_prop(lbl, "text", "menu item");
+    a.insert(panel, lbl, 0);
+
+    opened: list = [];
+    cleanup = wl_attach_click_popover(hit_test(bar, 10, 16), panel, "bottom");
+    ph: any = _popovers[-1];                   # the handle just registered
+    hid = a.connect(hit_test(bar, 10, 16), "on_click",
+                    lambda { opened.append(1); });
+
+    anchor_w: any = hit_test(bar, 10, 16);
+    wl_inject_button(bar, 10, 16, 0x110, True);
+    wl_inject_button(bar, 10, 16, 0x110, False);
+    assert ph.open == True;
+    assert len(opened) == 1;                   # author handler still fires
+
+    # press OUTSIDE (anchor nor panel) dismisses on press
+    wl_inject_button(bar, 150, 16, 0x110, True);
+    assert ph.open == False;
+
+    # reopen then toggle via second click on the anchor
+    wl_inject_button(bar, 10, 16, 0x110, True);
+    wl_inject_button(bar, 10, 16, 0x110, False);
+    assert ph.open == True;
+    wl_inject_button(bar, 10, 16, 0x110, True);
+    wl_inject_button(bar, 10, 16, 0x110, False);
+    assert ph.open == False;
+    assert len(opened) == 3;
+    cleanup();
+}
+
+test "escape closes an open click-popover before entry routing" {
+    bar = _w5_bar();
+    panel = adapter().construct("Label", {});
+    anchor: any = hit_test(bar, 10, 16);
+    cleanup = wl_attach_click_popover(anchor, panel, "bottom");
+    wl_inject_button(bar, 10, 16, 0x110, True);
+    wl_inject_button(bar, 10, 16, 0x110, False);
+    assert _popovers[-1].open == True;
+    assert wl_inject_key(bar, "Escape") == True;
+    assert _popovers[-1].open == False;
+    cleanup();
+}
+
+test "hover popover opens after enter and closes after leave" {
+    set_adapter(WlAdapter());
+    a = adapter();
+    bar = a.construct("Window", {"height": 32});
+    row = a.construct("Box", {"orientation": "H"});
+    trig = a.construct("Icon", {});
+    spacer = a.construct("Box", {"orientation": "H", "expand": True});
+    a.insert(row, trig, 0);
+    a.insert(row, spacer, 1);
+    a.insert(bar, row, 0);
+    paint_tree(offscreen_context(offscreen_surface(200, 32)), bar, 200, 32);
+
+    panel = a.construct("Label", {});
+    cleanup = wl_attach_hover_popover(trig, panel, "top", 0, 0);
+    tx = trig.rect[0] + trig.rect[2] / 2;
+    ty = trig.rect[1] + trig.rect[3] / 2;
+
+    wl_inject_motion(bar, tx, ty);             # enter trigger
+    assert _popovers[-1].open == True;
+    wl_inject_motion(bar, 190, 16);            # leave both -> hide delay (0)
+    assert _popovers[-1].open == False;
+    wl_inject_motion(bar, tx, ty);              # re-enter
+    assert _popovers[-1].open == True;
+    wl_inject_motion(bar, 190, 16);
+    assert _popovers[-1].open == False;
+    cleanup();
+}
+
+test "monitor hotplug maps bars per output and survives removal" {
+    set_adapter(WlAdapter());
+    a = adapter();
+    o1: any = _fake_out();
+    o2: any = _fake_out();
+    _conn.outputs[o1] = "DP-1";
+    _conn.outputs[o2] = "HDMI-1";
+
+    fired: list = [];
+    off = wl_connect_monitors_changed(lambda { fired.append(len(wl_list_monitors())); });
+    bar = a.construct("Window", {"height": 32});
+    box = a.construct("Box", {"orientation": "H"});
+    a.insert(box, a.construct("Label", {}), 0);
+    a.insert(bar, box, 0);
+    bar.present();
+    assert len(bar.surfaces) == 2;             # one per output
+
+    assert wl_monitor_key(o1) == "DP-1";
+    assert sorted([wl_monitor_key(m) for m in wl_list_monitors()]) == ["DP-1", "HDMI-1"];
+
+    # hotplug: unplug HDMI-1 -> its surface is destroyed, DP-1 kept
+    _remove_output(o2);
+    assert len(bar.surfaces) == 1;
+    assert bar.surfaces[0].output_name() == "DP-1";
+    assert len(fired) >= 1;
+
+    # replug: a new output appears; presented windows pick it up
+    o3: any = _fake_out();
+    _conn.outputs[o3] = "eDP-1";
+    _monitors_changed();
+    assert len(bar.surfaces) == 2;
+    names: list = [bar.surfaces[0].output_name(), bar.surfaces[1].output_name()];
+    assert "eDP-1" in names and "DP-1" in names;
+    off();
+
+    # monitor pinning: a window pinned to eDP-1 ignores others
+    pinned = a.construct("Window", {"height": 32, "monitor": "eDP-1"});
+    pb = a.construct("Box", {"orientation": "H"});
+    a.insert(pb, a.construct("Label", {}), 0);
+    a.insert(pinned, pb, 0);
+    pinned.present();
+    assert len(pinned.surfaces) == 1;
+    assert pinned.surfaces[0].output_name() == "eDP-1";
+    _remove_output(o1);
+    _remove_output(o3);
+}
+
+test "window lifecycle: set_visible(False) unmaps surfaces, True remaps" {
+    set_adapter(WlAdapter());
+    a = adapter();
+    o1: any = _fake_out();
+    _conn.outputs[o1] = "DP-1";
+    win = a.construct("Window", {"height": 32});
+    b = a.construct("Box", {"orientation": "H"});
+    a.insert(b, a.construct("Label", {}), 0);
+    a.insert(win, b, 0);
+    win.present();
+    assert len(win.surfaces) == 1;
+    a.set_prop(win, "hidden", True);
+    assert len(win.surfaces) == 0;
+    a.set_prop(win, "hidden", False);
+    assert len(win.surfaces) == 1;
+    _remove_output(o1);
+}
