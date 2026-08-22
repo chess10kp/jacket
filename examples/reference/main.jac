@@ -10,6 +10,7 @@
 #     ./run.sh status --json                # graph session snapshot
 #     ./run.sh mode enter presentation      # enter presentation mode
 #     ./run.sh mode exit do-not-disturb     # exit DND mode
+#     ./run.sh lock                         # lock the session (lockscreen layer)
 #     ./run.sh why binding:notification-popup --json
 #     ./run.sh quit
 import from src.adapter {
@@ -33,6 +34,8 @@ import from src.ipc { ipc, start_ipc_socket }
 import from examples.reference.components { Bar, MinimalBar }
 import from examples.reference.launcher_ui { LauncherWindow }
 import from examples.reference.notif_ui { NotificationLayer }
+import from examples.reference.lock_ui { LockLayer }
+import from src.lockscreen { get_lockscreen }
 import from examples.reference.style { CSS }
 
 
@@ -97,6 +100,12 @@ def sync_bars() {
 }
 
 
+def _ipc_lock() -> str {
+    get_lockscreen().lock();
+    return "locked";
+}
+
+
 def on_activate(app: any) {
     create_desktop("reference");
     wire_notification_source(policy_state().notif_source);
@@ -106,6 +115,8 @@ def on_activate(app: any) {
     launcher.widget.present();
     launcher.widget.set_visible(False);
     NotificationLayer();
+    LockLayer();
+    ipc().register("lock", _ipc_lock);
     sync_bars();
     connect_monitors_changed(sync_bars);
     start_ipc_socket(lambda (argv: list) { return ipc().handle(argv); });

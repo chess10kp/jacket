@@ -118,4 +118,48 @@ glob CSS: str = """
     background: rgba(120, 160, 255, 0.25);
 }
 .workspaces button.ws:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* --- lockscreen -----------------------------------------------------------
+   Fullscreen overlay: dimmed backdrop, centered clock panel, masked entry.
+   The window itself is transparent; .lock-root paints the dim. */
+.lock-root {
+    background: rgba(10, 12, 16, 0.82);
+}
+.lock-layer {
+    background: transparent;
+}
+.lock-panel {
+    margin-top: 22vh;
+    spacing: 8px;
+    align-items: center;
+}
+.lock-clock {
+    font-size: 84px;
+    font-weight: 300;
+    color: #f2f4f8;
+}
+.lock-date {
+    font-size: 20px;
+    font-weight: 400;
+    color: #aab2c0;
+}
+.lock-hint {
+    min-height: 24px;
+    margin-top: 10px;
+    font-size: 14px;
+    color: #e0a0a0;
+}
+.state-checking .lock-hint { color: #9ab0d8; }
+.lock-entry {
+    margin-top: 18px;
+    font-size: 18px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #f2f4f8;
+}
+.lock-entry:focus {
+    background: rgba(255, 255, 255, 0.13);
+}
+
 """;

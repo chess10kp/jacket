@@ -7,6 +7,11 @@
 # IN PLACE (same id, new text), each bubble's content reads its per-row Signal
 # via row_item() — the row_fn snapshot would go stale (see builders.jac For).
 # The window hides itself when the list is empty.
+#
+# Click-to-dismiss: the whole bubble is clickable (on_click on a non-Button
+# container uses the adapter's GestureClick fallback); clicking anywhere closes
+# the row. The ✕ button still works — its own click gesture claims the pointer
+# sequence, so the bubble's gesture never double-fires.
 import from src.builders { component, Box, Label, Button, Window, For, Show, row_item }
 import from src.animation { animated, ease }
 import from src.notifications { get_notifications }
@@ -52,6 +57,7 @@ def notif_row(n: dict) -> any {
         class=cur.map(_urgency_class),
         opacity=fade,
         margin_top=slide,
+        on_click=lambda { _close(nid); },
         children=[
             head,
             Label(class="notif-summary", text=cur.map(_summary)),

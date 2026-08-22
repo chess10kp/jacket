@@ -219,6 +219,18 @@ def anchor_bar(w, edge):
     except Exception:
         pass
 
+def anchor_fullscreen(w):
+    """Pin a top-level to ALL four edges with zero margins and exclusive_zone
+    -1: a full-output surface that reserves nothing and is never displaced
+    (lockscreen backdrop). No-op off layer-shell compositors."""
+    try:
+        for e in (EDGE_LEFT, EDGE_RIGHT, EDGE_TOP, EDGE_BOTTOM):
+            Gtk4LayerShell.set_anchor(w, e, True)
+            Gtk4LayerShell.set_margin(w, e, 0)
+        Gtk4LayerShell.set_exclusive_zone(w, -1)
+    except Exception:
+        pass
+
 # --- main loop -------------------------------------------------------------
 def idle_add(fn):      return GLib.idle_add(fn)
 def timeout_add(ms, fn): return GLib.timeout_add(ms, fn)
@@ -269,6 +281,32 @@ def run_ipc_app(app_id, on_activate, on_request):
     app.connect("activate", lambda a: _wrap_activate(on_activate)(a))
     app.connect("command-line", command_line)
     return app.run(sys.argv)
+
+# --- clickable containers ---------------------------------------------------
+# on_click is Button-shaped ("clicked" signal). Containers (Gtk.Box) have no
+# clicked signal, so fall back to a GestureClick: press+release on the widget
+# fires the author handler with identical arity semantics (0-arg lambda or
+# widget-taking). The returned id is a (gesture, hid) tuple — disconnect_signal
+# unpacks it; builders record it verbatim as the cleanup handle.
+def has_signal(w, signal):
+    return GObject.signal_lookup(signal, type(w)) != 0
+
+def connect_gesture_click(w, handler):
+    def cb(gesture, n_press, x, y):
+        try:
+            return handler()
+        except TypeError:
+            return handler(w)
+    g = Gtk.GestureClick()
+    w.add_controller(g)
+    hid = g.connect("released", cb)
+    return (g, hid)
+
+def py_gesture_disconnect(pair):
+    if pair is not None:
+        g, hid = pair
+        try: g.disconnect(hid)
+        except Exception: pass
 
 # --- events: connect wraps arity so a 0-arg author handler just works. -----
 # R2 (event arity): a `lambda:` ignores the payload; a `lambda (w)` that wants
@@ -654,7 +692,11 @@ def set_prop(w: any, name: str, value: any) {
     } elif name == "tooltip" {
         w.set_tooltip_text(str(value));
     } elif name == "anchor" {
-        anchor_bar(w, str(value));
+        if value == "full" { anchor_fullscreen(w); }
+        else { anchor_bar(w, str(value)); }
+    } elif name == "password" {
+        # Entry password mode: mask input (set_visibility(False))
+        if hasattr(w, "set_visibility") { w.set_visibility(not bool(value)); }
     } elif name == "corner" {
         anchor_corner(w, str(value));
     } elif name == "monitor" {
@@ -723,10 +765,17 @@ def move(parent: any, child: any, pos: int) {
 def connect_signal(w: any, gtk_signal: str, handler: any) -> any {
     sig = SIGNAL_MAP.get(gtk_signal);
     if sig is None { sig = gtk_signal; }
+    if sig == "clicked" and not has_signal(w, "clicked") {
+        # non-Button container: GestureClick fallback (see connect_gesture_click)
+        return connect_gesture_click(w, handler);
+    }
     return connect(w, sig, handler);
 }
 
-def disconnect_signal(w: any, hid: int) { disconnect(w, hid); }
+def disconnect_signal(w: any, hid: any) {
+    if isinstance(hid, tuple) { py_gesture_disconnect(hid); return; }
+    disconnect(w, hid);
+}
 
 
 # ---------------------------------------------------------------------------
