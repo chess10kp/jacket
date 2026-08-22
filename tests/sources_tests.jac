@@ -1,27 +1,31 @@
 # sources_tests.jac — headless tests for the PURE source logic (PLAN §5).
 # Sources own sockets/DBus/subprocesses (untestable here), but their PARSERS
 # are pure text->data functions and carry all the real logic. We test those.
-import from src.hyprland { parse_workspaces, parse_active }
-import from src.sway { parse_sway_workspaces }
-import from src.battery { parse_battery, battery_icon }
-import from src.power_profiles {
+import from jacket.hyprland { parse_workspaces, parse_active }
+import from jacket.sway { parse_sway_workspaces }
+import from jacket.battery { parse_battery, battery_icon }
+import from jacket.power_profiles {
     normalize_profile, parse_profile_properties, parse_powerprofilesctl_output,
     next_profile
 }
-import from src.audio { parse_volume }
-import from src.brightness { parse_brightnessctl_info, parse_brightnessctl_get }
-import from src.pipewire {
+import from jacket.audio { parse_volume }
+import from jacket.brightness { parse_brightnessctl_info, parse_brightnessctl_get }
+import from jacket.pipewire {
     parse_vol_from_desc, parse_device_line, parse_wpctl_status,
     merge_device_volume, resolve_wpctl_id
 }
-import from src.launcher { parse_desktop, filter_apps, score, strip_field_codes }
-import from src.notifications { make_notification, apply_notify, dismiss, resolve_timeout, hint_urgency }
-import from src.mpris { parse_metadata, is_playing, format_status }
-import from src.tray { resolve_item, split_item_key, should_show, pick_icon_name, _pixmap_to_texture, parse_menu_layout, clean_label }
-import from src.network { parse_nmcli_general_status, parse_nmcli_wifi_list, parse_nmcli_active_connection }
-import from src.bluetooth {
+import from jacket.launcher { parse_desktop, filter_apps, score, strip_field_codes }
+import from jacket.notifications { make_notification, apply_notify, dismiss, mark_closing, is_closing, resolve_timeout, hint_urgency, serialize_active, deserialize_active }
+import from jacket.mpris { parse_metadata, is_playing, format_status }
+import from jacket.tray { resolve_item, split_item_key, should_show, pick_icon_name, _pixmap_to_texture, parse_menu_layout, clean_label }
+import from jacket.network { parse_nmcli_general_status, parse_nmcli_wifi_list, parse_nmcli_active_connection }
+import from jacket.bluetooth {
     parse_bluetoothctl_devices, parse_bluetoothctl_show_powered,
-    parse_bluetoothctl_paired, primary_device_from_connected
+    parse_bluetoothctl_paired, primary_device_from_connected,
+    parse_bluetoothctl_show, adapter_id_from_path, parse_adapter_state,
+    public_device_entry, connected_devices_summary, default_adapter_from_list,
+    devices_from_bluetoothctl_lists, attach_devices_to_adapters,
+    state_from_bluetoothctl_raw
 }
 
 
@@ -97,6 +101,111 @@ test "primary_device_from_connected picks first name or alias" {
     assert primary_device_from_connected(devs) == "Headphones";
     no_name = [{"name": "", "address": "AA:BB", "alias": "Fallback"}];
     assert primary_device_from_connected(no_name) == "Fallback";
+}
+
+test "parse_bluetoothctl_show reads adapter radio fields" {
+    txt = "Controller AA:BB:CC:DD:EE:FF (public)\n"
+        + "Name: My PC\n"
+        + "Alias: Desktop\n"
+        + "Powered: yes\n"
+        + "Discovering: no\n"
+        + "Discoverable: yes\n"
+        + "Pairable: yes\n";
+    st = parse_bluetoothctl_show(txt);
+    assert st["powered"] == True;
+    assert st["discoverable"] == True;
+    assert st["pairable"] == True;
+    assert st["discovering"] == False;
+}
+
+test "adapter_id_from_path extracts hci suffix" {
+    assert adapter_id_from_path("/org/bluez/hci0") == "hci0";
+    assert adapter_id_from_path("/org/bluez/hci1/") == "hci1";
+}
+
+test "parse_adapter_state maps BlueZ wire values" {
+    assert parse_adapter_state("on", False) == "enabled";
+    assert parse_adapter_state("off", True) == "disabled";
+    assert parse_adapter_state("off-enabling", False) == "enabling";
+    assert parse_adapter_state(None, True) == "enabled";
+}
+
+test "public_device_entry builds Quickshell-shaped device dict" {
+    props = {
+        "Name": "Life Q20",
+        "Alias": "Headphones",
+        "Address": "88:0E:85:39:E6:9C",
+        "Connected": True,
+        "Paired": True,
+        "Icon": "audio-headset",
+    };
+    dev = public_device_entry(
+        "/org/bluez/hci0/dev_88_0E_85_39_E6_9C", props, 72, "/org/bluez/hci0");
+    assert dev["name"] == "Headphones";
+    assert dev["device_name"] == "Life Q20";
+    assert dev["connected"] == True;
+    assert dev["battery_available"] == True;
+    assert dev["battery"] == 0.72;
+    assert dev["state"] == "connected";
+}
+
+test "connected_devices_summary filters connected only" {
+    devs = [
+        {"name": "A", "address": "AA", "connected": True},
+        {"name": "B", "address": "BB", "connected": False},
+    ];
+    out = connected_devices_summary(devs);
+    assert len(out) == 1;
+    assert out[0]["name"] == "A";
+}
+
+test "default_adapter_from_list prefers explicit path" {
+    adapters = [
+        {"dbus_path": "/org/bluez/hci0", "adapter_id": "hci0"},
+        {"dbus_path": "/org/bluez/hci1", "adapter_id": "hci1"},
+    ];
+    pick = default_adapter_from_list(adapters, "/org/bluez/hci1");
+    assert pick["adapter_id"] == "hci1";
+}
+
+test "devices_from_bluetoothctl_lists marks paired and connected" {
+    all_devs = [{"name": "HP", "address": "AA:BB:CC:DD:EE:FF", "alias": "HP"}];
+    paired = [{"name": "HP", "address": "AA:BB:CC:DD:EE:FF", "alias": "HP"}];
+    connected = paired;
+    devs = devices_from_bluetoothctl_lists(
+        all_devs, paired, connected, "/org/bluez/hci0");
+    assert len(devs) == 1;
+    assert devs[0]["paired"] == True;
+    assert devs[0]["connected"] == True;
+}
+
+test "attach_devices_to_adapters nests device lists" {
+    devices = [
+        {"adapter_path": "/org/bluez/hci0", "name": "HP"},
+        {"adapter_path": "/org/bluez/hci1", "name": "Phone"},
+    ];
+    adapters = [
+        {"dbus_path": "/org/bluez/hci0", "adapter_id": "hci0"},
+        {"dbus_path": "/org/bluez/hci1", "adapter_id": "hci1"},
+    ];
+    out = attach_devices_to_adapters(adapters, devices);
+    assert len(out[0]["devices"]) == 1;
+    assert out[0]["devices"][0]["name"] == "HP";
+    assert len(out[1]["devices"]) == 1;
+}
+
+test "state_from_bluetoothctl_raw builds manager snapshot" {
+    raw = {
+        "show": "Name: Desktop\nPowered: yes\nDiscovering: yes\n",
+        "all": "Device AA:BB:CC:DD:EE:FF Headphones\n",
+        "paired": "Device AA:BB:CC:DD:EE:FF Headphones\n",
+        "connected": "Device AA:BB:CC:DD:EE:FF Headphones\n",
+    };
+    st = state_from_bluetoothctl_raw(raw);
+    assert st["available"] == True;
+    assert len(st["devices"]) == 1;
+    assert st["devices"][0]["connected"] == True;
+    assert st["adapters"][0]["powered"] == True;
 }
 
 
@@ -364,6 +473,30 @@ test "dismiss removes by id" {
     assert dismiss(b, 99) == b;            # missing id is a no-op
 }
 
+test "mark_closing flags one row, keeps list identity elsewhere" {
+    a = apply_notify(apply_notify([], notif(1, 1)), notif(2, 1));
+    b = mark_closing(a, 1);
+    assert len(b) == 2;
+    assert b[0]["closing"] == True;       # flagged for the exit tween
+    assert b[1]["closing"] == False;
+    assert a[0]["closing"] == False;      # original untouched (new dicts)
+    assert is_closing(b, 1) == True;
+    assert is_closing(b, 2) == False;
+    assert is_closing(b, 99) == False;     # missing id: not closing
+    c = mark_closing(b, 1);                # already closing: idempotent
+    assert c == b;
+    assert mark_closing(a, 99) == a;       # missing id: no-op
+}
+
+test "re-Notify replaces a closing row with a fresh non-closing one" {
+    a = apply_notify([], notif(1, 1));
+    b = mark_closing(a, 1);
+    assert is_closing(b, 1) == True;
+    replaced = apply_notify(b, notif(1, 2));   # replaces_id semantics
+    assert len(replaced) == 1;
+    assert is_closing(replaced, 1) == False;   # stale grace timeout must skip
+}
+
 test "resolve_timeout: critical is sticky, 0 never, -1 defaults" {
     assert resolve_timeout(-1, 2) == 0;    # critical urgency overrides
     assert resolve_timeout(0, 1) == 0;     # explicit never
@@ -374,6 +507,22 @@ test "resolve_timeout: critical is sticky, 0 never, -1 defaults" {
 test "hint_urgency defaults to normal, reads the hint" {
     assert hint_urgency({}) == 1;
     assert hint_urgency({"urgency": 2}) == 2;
+}
+
+
+test "serialize/deserialize roundtrips the active list, drops closing flags" {
+    import from jacket.notifications { serialize_active, deserialize_active }
+    active = [
+        make_notification(1, "app", "sum", "body", 1, 5000),
+        make_notification(2, "app2", "s2", "", 2, 0),
+    ];
+    active[1]["closing"] = True;
+    restored = deserialize_active(serialize_active(active));
+    assert len(restored) == 2;
+    assert restored[0]["id"] == 1 and restored[0]["summary"] == "sum";
+    assert restored[1]["urgency"] == 2;
+    assert not restored[1]["closing"];     # crash mid-tween must not replay
+    assert restored[0]["expire_ms"] == 5000;
 }
 
 

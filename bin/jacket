@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""jacket — launch and control the user bar config."""
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TEMPLATE = os.path.join(ROOT, "packaging", "config-template")
+CTL = os.path.join(ROOT, "bin", "jacket-ctl")
+IPC_COMMANDS = frozenset(
+    {
+        "status",
+        "mode",
+        "why",
+        "affected-by",
+        "quit",
+        "reload",
+        "toggle",
+        "stocks",
+    }
+)
+
+
+def _config_home() -> str:
+    base = os.environ.get("XDG_CONFIG_HOME")
+    if not base:
+        base = os.path.join(os.environ.get("HOME", ""), ".config")
+    return os.path.join(base, "jacket")
+
+
+def resolve_config(name: str = "default") -> dict[str, str]:
+    d = os.path.join(_config_home(), name)
+    return {
+        "name": name,
+        "dir": d,
+        "shell": os.path.join(d, "shell.jac"),
+        "theme_css": os.path.join(d, "theme.css"),
+    }
+
+
+def cmd_init(name: str) -> int:
+    cfg = resolve_config(name)
+    if os.path.isdir(cfg["dir"]) and os.listdir(cfg["dir"]):
+        print(f"already exists: {cfg['dir']}", file=sys.stderr)
+        return 1
+    os.makedirs(cfg["dir"], exist_ok=True)
+    if not os.path.isdir(TEMPLATE):
+        print(f"missing template: {TEMPLATE}", file=sys.stderr)
+        return 1
+    for fname in os.listdir(TEMPLATE):
+        src = os.path.join(TEMPLATE, fname)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(cfg["dir"], fname))
+    print(f"created {cfg['dir']}")
+    return 0
+
+
+def _config_dir_empty_or_missing(dir_path: str) -> bool:
+    if not os.path.isdir(dir_path):
+        return True
+    return len(os.listdir(dir_path)) == 0
+
+
+def cmd_run(name: str, watch: bool, extra: list[str], renderer: str | None = None) -> int:
+    cfg = resolve_config(name)
+    if not os.path.isfile(cfg["shell"]):
+        if _config_dir_empty_or_missing(cfg["dir"]):
+            rc = cmd_init(name)
+            if rc != 0:
+                return rc
+            cfg = resolve_config(name)
+        else:
+            print(
+                f"missing {cfg['shell']}; config dir is not empty — "
+                f"restore shell.jac or remove {cfg['dir']} and run: "
+                f"jacket init -c {name}",
+                file=sys.stderr,
+            )
+            return 1
+    env = os.environ.copy()
+    env["JACKET_ROOT"] = ROOT
+    env["JACKET_CONFIG_DIR"] = cfg["dir"]
+    env["JACKET_CONFIG_NAME"] = name
+    if watch:
+        env["JACKET_WATCH"] = "1"
+    if renderer:
+        env["JACKET_RENDERER"] = renderer
+    cmd = ["jac", "run", cfg["shell"], *extra]
+    return subprocess.call(cmd, cwd=ROOT, env=env)
+
+
+def _delegate_ctl(argv: list[str]) -> int:
+    if not os.path.isfile(CTL):
+        print(f"missing {CTL}", file=sys.stderr)
+        return 1
+    return subprocess.call([CTL, *argv])
+
+
+def main() -> int:
+    # jacket status / mode / …  (no subcommand)
+    if len(sys.argv) > 1 and sys.argv[1] in IPC_COMMANDS:
+        return _delegate_ctl(sys.argv[1:])
+
+    parser = argparse.ArgumentParser(prog="jacket")
+    sub = parser.add_subparsers(dest="cmd")
+
+    p_init = sub.add_parser("init", help="scaffold ~/.config/jacket/<name>/")
+    p_init.add_argument(
+        "-c", "--config", default="default", help="config name (default: default)"
+    )
+
+    p_run = sub.add_parser("run", help="start the bar from user config")
+    p_run.add_argument("-c", "--config", default="default")
+    p_run.add_argument(
+        "--watch",
+        action="store_true",
+        help="dev mode: hot CSS + restart on .jac save",
+    )
+    p_run.add_argument(
+        "--renderer",
+        default=None,
+        choices=["auto", "wl", "gtk"],
+        help="windowing backend (default: auto — wl on Wayland, gtk fallback)",
+    )
+    p_run.add_argument("extra", nargs=argparse.REMAINDER)
+
+    args = parser.parse_args()
+
+    if args.cmd == "init":
+        return cmd_init(args.config)
+    if args.cmd == "run":
+        extra = args.extra
+        if extra and extra[0] == "--":
+            extra = extra[1:]
+        return cmd_run(args.config, args.watch, extra, args.renderer)
+
+    # Bare `jacket` → run default config.
+    return cmd_run("default", False, [])
+
+
+if __name__ == "__main__":
+    sys.exit(main())

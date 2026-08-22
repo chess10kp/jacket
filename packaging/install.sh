@@ -44,13 +44,37 @@ if ! [ -e /usr/lib64/libgtk4-layer-shell.so ] && ! [ -e /usr/lib/libgtk4-layer-s
   echo "!! libgtk4-layer-shell.so not found — install gtk4-layer-shell for anchored bars." >&2
 fi
 
-# --- 3. Install the systemd user unit ---------------------------------------
+# --- 3. Install jacket + jacket-ctl on PATH ---------------------------------
+BIN_DIR="${HOME}/.local/bin"
+mkdir -p "$BIN_DIR"
+for tool in jacket jacket-ctl; do
+  ln -sf "$HERE/bin/$tool" "$BIN_DIR/$tool"
+  echo "linked $BIN_DIR/$tool -> $HERE/bin/$tool"
+done
+
+# --- 4. Install the systemd user unit ---------------------------------------
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 mkdir -p "$UNIT_DIR"
 # Rewrite ExecStart to this checkout's real run.sh (handles non-default paths).
-sed "s|^ExecStart=.*|ExecStart=$RUN_SH|" \
+sed "s|^ExecStart=.*|ExecStart=jacket run|" \
   "$HERE/packaging/jacket.service" > "$UNIT_DIR/jacket.service"
-echo "installed $UNIT_DIR/jacket.service (ExecStart=$RUN_SH)"
+echo "installed $UNIT_DIR/jacket.service (ExecStart=jacket run)"
+
+# --- 4b. Install D-Bus activation for the notification daemon ---------------
+# If jacket dies, the bus relaunches it on the next Notify() instead of
+# dropping the notification. Inert while jacket owns the name. Skip by
+# creating a file named .no-notif-activation next to this script if you use
+# mako/dunst instead.
+if [ -e "$HERE/packaging/.no-notif-activation" ]; then
+  echo "skipping notification activation (.no-notif-activation present)"
+else
+  SVC_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/dbus-1/services"
+  mkdir -p "$SVC_DIR"
+  sed "s|^Exec=.*|Exec=$BIN_DIR/jacket run|" \
+    "$HERE/packaging/dbus-services/org.freedesktop.Notifications.service" \
+    > "$SVC_DIR/org.freedesktop.Notifications.service"
+  echo "installed $SVC_DIR/org.freedesktop.Notifications.service"
+fi
 
 systemctl --user daemon-reload 2>/dev/null || true
 
@@ -58,7 +82,10 @@ cat <<EOF
 
 Done. To start the shell now and on every login:
 
-    systemctl --user enable --now jacket.service
+    jacket run               # first run auto-scaffolds ~/.config/jacket/default/
+    # or: systemctl --user enable --now jacket.service
+
+    jacket init              # optional: scaffold a named config (jacket init mybar)
 
 Follow its logs with:
 

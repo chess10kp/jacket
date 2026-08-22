@@ -13,8 +13,8 @@
 # keep the item list non-empty (Jac requires at least one imported item).
 # If examples/reference/main.jac's entry changes, nothing here needs to
 # change — e2e tests cover the packaged path via dist/jacket.
-import from src.adapter { apply_css, run_with_ipc }
-import from src.glib { idle_add }
-import from src.reactive { set_flush_hook }
+import from jacket.adapter { apply_css, run_with_ipc }
+import from jacket.glib { idle_add }
+import from jacket.reactive { set_flush_hook }
 import from examples.reference.main { install, on_activate, ipc }
 import from examples.reference.style { CSS }

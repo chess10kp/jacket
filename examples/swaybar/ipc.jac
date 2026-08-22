@@ -1,15 +1,16 @@
 # swaybar example — IPC component registration.
 # ---------------------------------------------------------------------------
 # Transport + handler registry live in the library (adapter.run_with_ipc,
-# src.ipc). This file registers the swaybar's named getters so scripts can
+# jacket.ipc). This file registers the swaybar's named getters so scripts can
 # query live widget data:
 #     jac run examples/swaybar/main.jac status          # -> "clock=.. mem=.. ..."
 #     jac run examples/swaybar/main.jac stocks          # -> "L:.. C:.. W:.. ..."
-import from src.battery { get_battery }
+import from jacket.battery { get_battery }
+import from jacket.bluetooth { get_bluetooth }
 import from time { time, strftime, localtime }
-import from src.ipc { ipc }
+import from jacket.ipc { ipc }
 import from examples.swaybar.sources {
-    countdown, get_mem, get_bluetooth, get_stocks, format_stocks
+    countdown, get_mem, get_stocks, format_stocks
 }
 
 
@@ -31,5 +32,5 @@ def register_components() {
     h.register("stocks", lambda { format_stocks(get_stocks().prices()); });
     h.register("mem", lambda { str(get_mem().used()); });
     h.register("battery", _battery_text);
-    h.register("bluetooth", lambda { str(get_bluetooth().device()); });
+    h.register("bluetooth", lambda { str(get_bluetooth().primary_device()); });
 }

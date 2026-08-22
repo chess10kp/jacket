@@ -1,14 +1,14 @@
 # e2e_workflow_tests.jac — Steps A–G headless acceptance (E6).
-import from src.desktop {
+import from jacket.desktop {
     create_desktop, bootstrap_reference_outputs, get_desktop, handle_graph_command
 }
-import from src.policy {
+import from jacket.policy {
     enter_mode, exit_mode, inject_notification, policy_state,
     ROUTE_NOTIF_POPUP, ROUTE_NOTIF_HISTORY
 }
-import from src.outputs { apply_output_attach, apply_output_detach }
-import from src.graph_query { status_dict, why_dict, affected_by_dict }
-import from src.runtime_graph { session_store }
+import from jacket.outputs { apply_output_attach, apply_output_detach }
+import from jacket.graph_query { status_dict, why_dict, affected_by_dict }
+import from jacket.runtime_graph { session_store }
 
 
 def _surface_kinds(st: dict, connector: str) -> list {

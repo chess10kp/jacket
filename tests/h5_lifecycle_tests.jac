@@ -1,12 +1,12 @@
 # h5_lifecycle_tests.jac — H5 attach/detach and mount/dispose cycle gates (PLAN §5.1).
-import from src.mock_adapter { install_mock }
-import from src.desktop { create_desktop, bootstrap_reference_outputs }
-import from src.outputs { apply_output_attach, apply_output_detach }
-import from src.policy { enter_mode, exit_mode }
-import from src.projection { register_surface_builder, reset_projection }
-import from src.runtime_graph { session_store, session_outputs, output_surfaces }
-import from src.graph_query { status_dict }
-import from src.builders { Window, Label }
+import from jacket.mock_adapter { install_mock }
+import from jacket.desktop { create_desktop, bootstrap_reference_outputs }
+import from jacket.outputs { apply_output_attach, apply_output_detach }
+import from jacket.policy { enter_mode, exit_mode }
+import from jacket.projection { register_surface_builder, reset_projection }
+import from jacket.runtime_graph { session_store, session_outputs, output_surfaces }
+import from jacket.graph_query { status_dict }
+import from jacket.builders { Window, Label }
 
 
 def _surface_count(session: any) -> int {

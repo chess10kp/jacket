@@ -1,9 +1,9 @@
 # authoring_tests.jac — OSP edge-chain authoring + mount_tree.
-import from src.osp { ViewNode, Child, Anchored }
-import from src.mock_adapter { install_mock }
-import from src.builders { Button, Label, Box, Window, component }
-import from src.mount { mount_tree }
-import from src.overlays { anchored_panels, anchored_edges }
+import from jacket.osp { ViewNode, Child, Anchored }
+import from jacket.mock_adapter { install_mock }
+import from jacket.builders { Button, Label, Box, Window, component }
+import from jacket.mount { mount_tree }
+import from jacket.overlays { anchored_panels, anchored_edges }
 
 
 test "edge chain wires Child graph and mount inserts widgets" {

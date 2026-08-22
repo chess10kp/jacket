@@ -2,16 +2,16 @@
 # ---------------------------------------------------------------------------
 # Proves graph-native introspection: stable IDs, real edge paths, suppression
 # provenance, read-only queries, and graph-default IPC routing.
-import from src.desktop { create_desktop, bootstrap_reference_outputs, get_desktop }
-import from src.graph_query {
+import from jacket.desktop { create_desktop, bootstrap_reference_outputs, get_desktop }
+import from jacket.graph_query {
     query_why_binding, query_affected_by, why_dict, affected_by_dict, status_dict
 }
-import from src.policy {
+import from jacket.policy {
     enter_mode, exit_mode, policy_state,
     ROUTE_NOTIF_POPUP, ROUTE_NOTIF_HISTORY
 }
-import from src.runtime_graph { session_store }
-import from src.ipc { ipc }
+import from jacket.runtime_graph { session_store }
+import from jacket.ipc { ipc }
 import json;
 
 

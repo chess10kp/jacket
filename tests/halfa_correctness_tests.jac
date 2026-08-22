@@ -6,17 +6,17 @@
 #   §2 derived equality cutoff        (unchanged derived -> zero binding runs / writes)
 #   §4 ownership disposal             (disposed binding never runs again)
 #   §1 session reset                  (create_desktop leaves no stale graph nodes)
-import from src.topology_reactive {
+import from jacket.topology_reactive {
     create_source, create_derived, create_binding, read, source_set,
     feed_sources, feed_targets, dispose_owned, reset_engine_state
 }
-import from src.runtime_graph {
+import from jacket.runtime_graph {
     reset_session_store, DesktopSession, session_outputs
 }
-import from src.mock_adapter { install_mock }
-import from src.desktop { create_desktop, bootstrap_reference_outputs }
-import from src.projection { register_surface_builder, reset_projection }
-import from src.builders { Window, Label }
+import from jacket.mock_adapter { install_mock }
+import from jacket.desktop { create_desktop, bootstrap_reference_outputs }
+import from jacket.projection { register_surface_builder, reset_projection }
+import from jacket.builders { Window, Label }
 
 
 def _reset() {

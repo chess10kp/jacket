@@ -14,9 +14,9 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-# %h = the user's home; adjust if the repo lives elsewhere.
-ExecStart=%h/repos/jacket/run.sh
-Restart=on-failure
+# %h = the user's home; jacket must be on PATH (see packaging/install.sh).
+ExecStart=jacket run
+Restart=always
 RestartSec=2
 # Bring the shell down cleanly on logout.
 KillMode=mixed

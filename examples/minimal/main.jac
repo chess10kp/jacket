@@ -1,10 +1,10 @@
 # Minimal shell bootstrap — copy-paste starting point from LIBRARY.md §2.
 # A single top bar with a static clock label; no sources, no multi-monitor logic.
-import from src.adapter { install, run_dynamic, apply_css }
-import from src.glib { idle_add }
-import from src.reactive { set_flush_hook }
-import from src.builders { component, Window, Box, Label }
-import from src.osp { ViewNode }
+import from jacket.adapter { install, run_dynamic, apply_css }
+import from jacket.glib { idle_add }
+import from jacket.reactive { set_flush_hook }
+import from jacket.builders { component, Window, Box, Label }
+import from jacket.osp { ViewNode }
 
 glob MY_CSS: str = """
 window { background: #1e1e2e; }

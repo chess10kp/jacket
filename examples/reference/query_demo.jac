@@ -7,8 +7,8 @@
 # author can spawn cross-cutting walkers over their OWN UI — query-by-class and
 # flash-all-X restyle — with the same idiom the framework uses internally. No
 # re-render, no parallel tree, no reaching into GTK.
-import from src.builders { component, Box, Label, Button }
-import from src.osp { ViewNode, query_by_class, flash_class, unflash_class }
+import from jacket.builders { component, Box, Label, Button }
+import from jacket.osp { ViewNode, query_by_class, flash_class, unflash_class }
 
 
 # A tiny toolbar. Note the shared `action` class across the two buttons — that

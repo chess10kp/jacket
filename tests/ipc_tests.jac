@@ -1,5 +1,5 @@
-# ipc_tests.jac — headless tests for src/ipc.jac handler logic.
-import from src.ipc { IPC }
+# ipc_tests.jac — headless tests for jacket/ipc.jac handler logic.
+import from jacket.ipc { IPC }
 
 
 test "handle status_line with no args" {

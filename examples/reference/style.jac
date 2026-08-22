@@ -14,7 +14,8 @@ glob CSS: str = """
     padding: 2px 10px;
 }
 .clock { font-weight: bold; }
-.battery, .volume, .clock, .media, .notifications { padding: 2px 10px; }
+.battery, .volume, .clock, .media, .notifications, .bluetooth { padding: 2px 10px; }
+.bluetooth { color: #8ab4f8; }
 .media { background: transparent; border: none; box-shadow: none; color: #b8c0d0; }
 .media:hover { background: rgba(255, 255, 255, 0.08); }
 .notifications { color: #ffd27f; }
@@ -117,4 +118,84 @@ glob CSS: str = """
     background: rgba(120, 160, 255, 0.25);
 }
 .workspaces button.ws:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* --- lockscreen -----------------------------------------------------------
+   Fullscreen overlay: dimmed backdrop, centered clock panel, masked entry.
+   The window itself is transparent; .lock-root paints the dim. */
+.lock-root {
+    background: rgba(10, 12, 16, 0.82);
+}
+.lock-layer {
+    background: transparent;
+}
+.lock-panel {
+    margin-top: 22vh;
+    spacing: 8px;
+    align-items: center;
+}
+.lock-clock {
+    font-size: 84px;
+    font-weight: 300;
+    color: #f2f4f8;
+}
+.lock-date {
+    font-size: 20px;
+    font-weight: 400;
+    color: #aab2c0;
+}
+.lock-hint {
+    min-height: 24px;
+    margin-top: 10px;
+    font-size: 14px;
+    color: #e0a0a0;
+}
+.state-checking .lock-hint { color: #9ab0d8; }
+.lock-entry {
+    margin-top: 18px;
+    font-size: 18px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #f2f4f8;
+}
+.lock-entry:focus {
+    background: rgba(255, 255, 255, 0.13);
+}
+
+
+   --- widget flyouts (control center / calendar / media popup) ---
+.control-center { min-width: 260px; padding: 12px; }
+.cc-title {
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    color: #aab2c0; margin-bottom: 8px;
+}
+.cc-row { min-height: 30px; padding: 4px 0; }
+.cc-icon { color: #e8c47a; padding-right: 8px; }
+.cc-slider { min-width: 200px; }
+.cc-power { spacing: 6px; }
+.pp-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 8px; padding: 4px 10px;
+    color: #c8ccd4; font-size: 12px;
+}
+.pp-btn.active {
+    background: rgba(120, 160, 255, 0.35); color: #ffffff;
+}
+.cc-network { color: #9aa0aa; font-size: 13px; }
+.calendar-flyout { padding: 10px 14px; }
+.calendar-grid {
+    font-family: monospace; font-size: 13px;
+    color: #c8ccd4; line-height: 1.5;
+}
+.media-popup { padding: 10px 14px; min-width: 220px; }
+.media-popup-title { font-size: 15px; font-weight: 600; color: #f2f4f8; }
+.media-popup-artist { font-size: 13px; color: #9aa0aa; }
+.media-popup-controls { spacing: 8px; margin-top: 8px; }
+.media-popup-controls button {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px; padding: 6px 12px;
+    color: #f2f4f8; font-size: 15px;
+}
+.media-popup-controls button:hover { background: rgba(255, 255, 255, 0.16); }
+""";
 """;

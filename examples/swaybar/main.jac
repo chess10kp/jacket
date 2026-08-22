@@ -6,10 +6,10 @@
 #     jac run examples/swaybar/main.jac stocks      # just the stocks block
 #     jac run examples/swaybar/main.jac toggle      # show/hide
 #     jac run examples/swaybar/main.jac quit
-import from src.adapter { install, apply_css, run_with_ipc }
-import from src.reactive { set_flush_hook }
-import from src.glib { idle_add }
-import from src.ipc { ipc }
+import from jacket.adapter { install, apply_css, run_with_ipc }
+import from jacket.reactive { set_flush_hook }
+import from jacket.glib { idle_add }
+import from jacket.ipc { ipc }
 import from examples.swaybar.components { Bar }
 import from examples.swaybar.style { CSS }
 import from examples.swaybar.ipc { register_components }

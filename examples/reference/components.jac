@@ -6,104 +6,28 @@
 # where declared; no re-render. Each widget binds a source Signal to a leaf
 # prop via .map — one effect, one patch per change (PLAN §3).
 import from time { strftime, localtime }
-import from src.reactive { signal }
-import from src.osp { Child, Anchored }
-import from src.builders { component, Box, Label, Button, Window, For, row_item, Slider }
-import from src.sources { ticker }
-import from src.wm { get_wm }
-import from src.battery { get_battery, battery_icon }
-import from src.audio { get_audio }
-import from src.mpris { get_mpris, format_status }
-import from src.notifications { get_notifications }
-import from src.launcher { get_launcher }
-import from src.tray { get_tray }
-import from src.desktop { get_desktop }
-import from src.policy { active_modes, toggle_mode }
-import from src.projection { present_surface_views }
-
-
-# ===========================================================================
-# ::py:: seam — the ONE GTK-direct spot in components: a right-click gesture +
-# a Gtk.PopoverMenu built from the tray's parsed dbusmenu tree. The adapter's
-# event map has no right-click channel and the builders expose no popover, so
-# this talks to the live Gtk.Button widget directly (mirrors the walled-off
-# gi style of adapter.jac / tray.jac). Only `attach_tray_menu` crosses to Jac.
-# ===========================================================================
-::py::
-import gi
-try:
-    gi.require_version("Gtk", "4.0")
-    from gi.repository import Gtk, Gio, GLib
-except Exception:
-    Gtk = None
-    Gio = None
-    GLib = None
-
-
-def _build_menu_model(node, group, key, fire_cb):
-    """Parsed dbusmenu tree -> (Gio.Menu, actions installed on `group`). Visible
-    non-separator leaves become MenuItems bound to a "traymenu.i<id>" action whose
-    activate fires the dbusmenu Event; separators flush a section; children recurse
-    into submenus. Disabled entries get a disabled action (greyed, unclickable)."""
-    menu = Gio.Menu()
-    section = Gio.Menu()
-    for child in node.get("children", []):
-        if not child.get("visible", True):
-            continue
-        if child.get("separator"):
-            if section.get_n_items() > 0:
-                menu.append_section(None, section)
-                section = Gio.Menu()
-            continue
-        label = child.get("label") or ""
-        if child.get("children"):
-            submodel = _build_menu_model(child, group, key, fire_cb)
-            section.append_submenu(label, submodel)
-            continue
-        act = "i%d" % int(child["id"])
-        section.append_item(Gio.MenuItem.new(label, "traymenu." + act))
-        action = Gio.SimpleAction.new(act, None)
-        action.set_enabled(bool(child.get("enabled", True)))
-
-        def _on_activate(a, p, _id=int(child["id"])):
-            try:
-                fire_cb(key, _id)
-            except Exception:
-                pass
-        action.connect("activate", _on_activate)
-        group.add_action(action)
-    if section.get_n_items() > 0:
-        menu.append_section(None, section)
-    return menu
-
-
-def attach_tray_menu(widget, key, fetch_cb, fire_cb):
-    """Wire a right-button GestureClick on `widget`; on press, fetch_cb(key) yields
-    the parsed dbusmenu tree, which we turn into a PopoverMenu anchored to the
-    button. No-op headless (gi import failed) or when the item ships no menu."""
-    if widget is None or Gtk is None:
-        return
-
-    def _on_pressed(gesture, n_press, x, y):
-        try:
-            tree = fetch_cb(key)
-        except Exception:
-            tree = None
-        if not tree or not tree.get("children"):
-            return
-        group = Gio.SimpleActionGroup()
-        model = _build_menu_model(tree, group, key, fire_cb)
-        pop = Gtk.PopoverMenu.new_from_model(model)
-        pop.insert_action_group("traymenu", group)
-        pop.set_parent(widget)
-        pop.connect("closed", lambda p: p.unparent())
-        pop.popup()
-
-    gesture = Gtk.GestureClick.new()
-    gesture.set_button(3)          # 3 = BUTTON_SECONDARY (right click)
-    gesture.connect("pressed", _on_pressed)
-    widget.add_controller(gesture)
-::py::
+import from jacket.reactive { signal }
+import from jacket.osp { Child, Anchored }
+import from jacket.adapter_api { adapter }
+import from jacket.builders { component, Box, Label, Button, Window, For, row_item, Slider }
+import from jacket.sources { ticker }
+import from jacket.wm { get_wm }
+import from jacket.battery { get_battery, battery_icon }
+import from jacket.bluetooth { get_bluetooth }
+import from jacket.audio { get_audio }
+import from jacket.mpris { get_mpris, format_status }
+import from jacket.notifications { get_notifications }
+import from jacket.calendar { month_text }
+import from datetime { datetime }
+import from examples.reference.widgets {
+    ControlCenterButton, MediaPopupButton,
+}
+import from jacket.launcher { get_launcher }
+import from jacket.tray { get_tray }
+import from jacket.desktop { get_desktop }
+import from jacket.policy { active_modes, toggle_mode }
+import from jacket.projection { present_surface_views }
+import from jacket.adapter { attach_tray_menu }
 
 
 # Clock — pure derivation off a source, no local state. Proves the leaf-patch
@@ -116,6 +40,33 @@ def Clock() -> any {
         class="clock",
         text=t.map(lambda (tv: any) { strftime("%a %d %b  %H:%M:%S", localtime(tv)); }),
     );
+}
+
+
+# CalendarFlyout — click the clock: month grid as one mono label; refreshes
+# every 30s (the grid only changes at midnight). Pure grid math in jacket/calendar.
+def _cal_text(now: int) -> str {
+    names = ["January", "February", "March", "April", "May", "June", "July",
+             "August", "September", "October", "November", "December"];
+    d = datetime.fromtimestamp(now).date();
+    return month_text(d.year, d.month, d.year, d.month, d.day, names);
+}
+
+@component
+def CalendarPanel() -> any {
+    t = ticker(30000);
+    return Box(orientation="V", class="calendar-flyout", children=[
+        Label(class="calendar-grid", text=t.map(_cal_text)),
+    ]);
+}
+
+@component
+def ClockFlyoutButton() -> any {
+    btn = Clock();
+    panel = CalendarPanel();
+    cleanup = adapter().attach_click_popover(btn.widget, panel.widget, "bottom");
+    if cleanup is not None { btn.on_cleanup(cleanup); }
+    return btn;
 }
 
 
@@ -147,6 +98,22 @@ def Workspaces() -> any {
     return Box(orientation="H", class="workspaces", children=[
         For(h.workspaces, key=lambda (w: dict) { w["key"]; }, row=ws_row),
     ]);
+}
+
+
+# BluetoothWidget — first connected device name; hidden when nothing is connected.
+def _bt_label(name: str) -> str {
+    return ("" if name == "" else "BT  " + name);
+}
+
+@component
+def BluetoothWidget() -> any {
+    b = get_bluetooth();
+    return Label(
+        class="bluetooth",
+        hidden=b.primary_device.map(lambda (n: str) { n == ""; }),
+        text=b.primary_device.map(_bt_label),
+    );
 }
 
 
@@ -237,7 +204,7 @@ def _tray_activate(key: str) { get_tray().activate(key); }
 # Right-click plumbing. These two named callables are the ONLY things that cross
 # from the GTK popover (built in the seam below) back into the tray source: fetch
 # the parsed dbusmenu tree, and fire an Event when an entry is chosen. Passing
-# them as plain callables keeps the seam free of any src.tray import.
+# them as plain callables keeps the seam free of any jacket.tray import.
 def _tray_fetch_menu(key: str) -> any { return get_tray().load_menu(key); }
 def _tray_fire(key: str, item_id: int) { get_tray().fire(key, item_id); }
 
@@ -248,9 +215,8 @@ def tray_row(it: dict) -> any {
     btn = Button(class="tray-item", child=lbl,
         tooltip=cur.map(_tray_tip),
         on_click=lambda { _tray_activate(key); });
-    # Right-click: attach a GestureClick to the live GTK button; on press it
-    # fetches the dbusmenu tree and pops up a PopoverMenu. Direct-to-widget wiring
-    # (the adapter/builders expose no right-click channel or popover primitive).
+    # Right-click: the adapter wires a GestureClick on the live button; on press
+    # it fetches the dbusmenu tree and pops up a PopoverMenu anchored to it.
     attach_tray_menu(btn.widget, key, _tray_fetch_menu, _tray_fire);
     return btn;
 }
@@ -328,16 +294,18 @@ def Bar(mon: any = None) -> any {
     win +>:Child(order=0):+> inner;
     inner +>:Child(order=0):+> LauncherButton();
     inner +>:Child(order=1):+> Workspaces();
-    inner +>:Child(order=2):+> MediaWidget();
+    inner +>:Child(order=2):+> MediaPopupButton();
     inner +>:Child(order=3):+> Box(orientation="H", class="spacer", hexpand=True);
-    inner +>:Child(order=4):+> Clock();
+    inner +>:Child(order=4):+> ClockFlyoutButton();
     inner +>:Child(order=5):+> Box(orientation="H", class="spacer", hexpand=True);
-    inner +>:Child(order=6):+> ModeButtons();
-    inner +>:Child(order=7):+> TrayWidget();
-    inner +>:Child(order=8):+> NotificationsWidget();
+    inner +>:Child(order=6):+> ControlCenterButton();
+    inner +>:Child(order=7):+> ModeButtons();
+    inner +>:Child(order=8):+> TrayWidget();
+    inner +>:Child(order=9):+> NotificationsWidget();
     vol = VolumeButton();
     vol +>:Anchored(mode="hover", position="bottom"):+> VolumePanel();
-    inner +>:Child(order=9):+> vol;
-    inner +>:Child(order=10):+> BatteryWidget();
+    inner +>:Child(order=10):+> vol;
+    inner +>:Child(order=11):+> BluetoothWidget();
+    inner +>:Child(order=12):+> BatteryWidget();
     return win;
 }
