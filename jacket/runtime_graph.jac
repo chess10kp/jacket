@@ -137,7 +137,7 @@ edge OutputSurface:  OutputNode --> SurfaceNode {}
 edge SurfaceRegion:  SurfaceNode --> RegionNode {}
 edge Owns:  ReactiveNode --> ReactiveNode {}
 edge Feeds: ReactiveNode --> ReactiveNode {}
-edge Requests:  any --> any {}
+edge Requests:  BasePolicy --> RoutePolicy {}
 edge Suppresses: ModeNode --> RoutePolicy {}
 edge Overrides: ModeNode --> OverridePolicy {}
 edge Activates:  RoutePolicy --> RouteNode {}
@@ -181,14 +181,14 @@ def session_route_policies(session: DesktopSession) -> list[RoutePolicy] {
     return out;
 }
 
-def route_policy_for(session: DesktopSession, route_name: str) -> RoutePolicy {
+def route_policy_for(session: DesktopSession, route_name: str) -> RoutePolicy | None {
     for rp in session_route_policies(session) {
         if rp.route_name == route_name { return rp; }
     }
     return None;
 }
 
-def route_node_for_policy(rp: RoutePolicy) -> RouteNode {
+def route_node_for_policy(rp: RoutePolicy) -> RouteNode | None {
     ns = [rp ->:Activates:->];
     if len(ns) > 0 { return ns[0]; }
     return None;

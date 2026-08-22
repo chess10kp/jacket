@@ -116,12 +116,12 @@ with entry {
         cyc = r["keystroke_cycle"];
         print("");
         print("n=" + str(r["n"]));
-        print("  keystroke p50  " + str(round(cyc["keystroke_p50_ms"], 3)) + "ms");
-        print("  keystroke max  " + str(round(cyc["keystroke_max_ms"], 3)) + "ms");
-        print("  cycle p50      " + str(round(cyc["cycle_p50_ms"], 3)) + "ms");
-        sq = r["single_query"];
+        print("  keystroke p50  " + str(round(cyc["keystroke_p50_ms"] as float, 3)) + "ms");
+        print("  keystroke max  " + str(round(cyc["keystroke_max_ms"] as float, 3)) + "ms");
+        print("  cycle p50      " + str(round(cyc["cycle_p50_ms"] as float, 3)) + "ms");
+        sq = r["single_query"] as dict;
         for (q, row) in sq.items() {
-            print("  query " + q + " p50  " + str(round(row["p50_ms"], 3)) + "ms");
+            print("  query " + str(q) + " p50  " + str(round(row["p50_ms"] as float, 3)) + "ms");
         }
     }
 }

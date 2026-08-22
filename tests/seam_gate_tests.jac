@@ -188,7 +188,7 @@ def debt_allowlist_keys():
 
 
 test "no GTK tokens outside the adapter seam" {
-    offenders: list = hard_seam_violations();
+    offenders = hard_seam_violations() as list;
     if len(offenders) > 0 {
         print("seam gate offenders:", offenders);
     }
@@ -198,7 +198,7 @@ test "no GTK tokens outside the adapter seam" {
 }
 
 test "GLib/Gio confined to source modules and the loop shim" {
-    offenders: list = glib_gio_seam_violations();
+    offenders = glib_gio_seam_violations() as list;
     if len(offenders) > 0 {
         print("GLib/Gio offenders:", offenders);
     }
@@ -213,7 +213,7 @@ test "the original W0 debts are paid off" {
     # none of them may reappear. The only tolerated remainder is the concurrent
     # WlAdapter Pango slice (see ledger note); any OTHER new entry must come
     # with a "# W0-DEBT" marker and a plan to delete it again.
-    keys: list = debt_allowlist_keys();
+    keys = debt_allowlist_keys() as list;
     assert "jacket/tray.jac" not in keys, "tray.jac texture debt resurfaced";
     assert "examples/reference/components.jac" not in keys,
         "components.jac popover debt resurfaced";
@@ -228,7 +228,7 @@ test "the original W0 debts are paid off" {
 }
 
 test "scan actually sees files" {
-    files: list = scanned_files();
+    files = scanned_files() as list;
     if len(files) < 30 {
         print("scanner only saw:", files);
     }

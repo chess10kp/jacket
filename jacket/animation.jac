@@ -58,7 +58,9 @@ def _lerp(from_val: any, to_val: any, t: float) -> any {
     if isinstance(from_val, int) and isinstance(to_val, int) {
         return int(round(from_val + (to_val - from_val) * t));
     }
-    return from_val + (to_val - from_val) * t;
+    fv = float(from_val);
+    tv = float(to_val);
+    return fv + (tv - fv) * t;
 }
 
 
@@ -121,8 +123,10 @@ def tick(now: float) {
     done: list = [];
     cbs: list = [];
     for tw in active_tweens {
-        elapsed_ms = (now - tw["start"]) * 1000.0;
-        raw_t = elapsed_ms / tw["ms"];
+        start_ms = tw["start"] as float;
+        dur_ms = tw["ms"] as float;
+        elapsed_ms = (now - start_ms) * 1000.0;
+        raw_t = elapsed_ms / dur_ms;
         if raw_t >= 1.0 {
             tw["anim"].display.set(tw["to"]);
             tw["anim"]._tween = None;
@@ -130,7 +134,7 @@ def tick(now: float) {
             if tw["on_done"] is not None { cbs.append(tw["on_done"]); }
         } else {
             eased = tw["ease"](raw_t);
-            tw["anim"].display.set(_lerp(tw["from"], tw["to"], eased));
+            tw["anim"].display.set(_lerp(tw["from"], tw["to"], eased as float));
         }
     }
     for tw in done {

@@ -11,7 +11,7 @@ import from jacket.builders { Window, Label }
 
 
 def _surface_kinds(st: dict, connector: str) -> list {
-    for o in st["outputs"] {
+    for o in st["outputs"] as list {
         if o["connector"] == connector {
             return [s["kind"] for s in o["surfaces"]];
         }

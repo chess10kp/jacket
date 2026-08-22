@@ -120,7 +120,7 @@ def _click_popover(btn: any, panel: any) {
 }
 
 @component
-def ControlCenterButton() -> any {
+def ControlCenterButton() -> ViewNode {
     btn = Button(class="control-center-toggle", label="⚙");
     _click_popover(btn, ControlCenterPanel());
     return btn;
@@ -146,7 +146,7 @@ def MediaTransport() -> any {
 
 
 @component
-def MediaPopupButton() -> any {
+def MediaPopupButton() -> ViewNode {
     m = get_mpris();
     btn = Button(
         class="media",

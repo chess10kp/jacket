@@ -172,7 +172,7 @@ obj Launcher {
             e = {
                 "key": raw["key"],
                 "name": raw["name"],
-                "exec": strip_field_codes(raw["exec"]),
+                "exec": strip_field_codes(str(raw["exec"])),
                 "icon": raw["icon"],
                 "lname": raw["name"].lower(),
             };

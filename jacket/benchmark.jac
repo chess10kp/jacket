@@ -34,10 +34,10 @@ def build_500_node_cone() -> dict {
     nodes: list = [create_source(0)];
     for i in range(19) {
         parent = nodes[-1];
-        d = create_derived(lambda (p=parent) { read(p); });
+        d = create_derived(lambda (p: any = parent) { read(p); });
         nodes.append(d);
     }
-    tail = create_binding(lambda (p=nodes[-1]) { read(p); });
+    tail = create_binding(lambda (p: any = nodes[-1]) { read(p); });
     route_connect(nodes[-1], tail);
     dormant: any = None;
     for i in range(479) {
@@ -53,10 +53,10 @@ def build_cone_only() -> dict {
     nodes: list = [create_source(0)];
     for i in range(19) {
         parent = nodes[-1];
-        d = create_derived(lambda (p=parent) { read(p); });
+        d = create_derived(lambda (p: any = parent) { read(p); });
         nodes.append(d);
     }
-    tail = create_binding(lambda (p=nodes[-1]) { read(p); });
+    tail = create_binding(lambda (p: any = nodes[-1]) { read(p); });
     route_connect(nodes[-1], tail);
     return {"source": nodes[0], "tail": tail};
 }
@@ -88,7 +88,7 @@ def bench_dormant_overhead_ratio(iterations: int = 5) -> float {
     large = bench_propagation_on(build_500_node_cone(), iterations);
     small = bench_propagation_on(build_cone_only(), iterations);
     if small["p95_ms"] <= 0 { return 0.0; }
-    return large["p95_ms"] / small["p95_ms"];
+    return float(large["p95_ms"]) / float(small["p95_ms"]);
 }
 
 

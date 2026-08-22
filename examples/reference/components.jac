@@ -7,7 +7,7 @@
 # prop via .map — one effect, one patch per change (PLAN §3).
 import from time { strftime, localtime }
 import from jacket.reactive { signal }
-import from jacket.osp { Child, Anchored }
+import from jacket.osp { Child, Anchored, ViewNode }
 import from jacket.adapter_api { adapter }
 import from jacket.builders { component, Box, Label, Button, Window, For, row_item, Slider }
 import from jacket.sources { ticker }
@@ -34,7 +34,7 @@ import from jacket.adapter { attach_tray_menu }
 # path: every tick the source changes, the derived string recomputes, one
 # set_label/second. (PLAN Phase-3 milestone.)
 @component
-def Clock() -> any {
+def Clock() -> ViewNode {
     t = ticker(1000);
     return Label(
         class="clock",
@@ -61,7 +61,7 @@ def CalendarPanel() -> any {
 }
 
 @component
-def ClockFlyoutButton() -> any {
+def ClockFlyoutButton() -> ViewNode {
     btn = Clock();
     panel = CalendarPanel();
     cleanup = adapter().attach_click_popover(btn.widget, panel.widget, "bottom");
@@ -93,7 +93,7 @@ def ws_row(w: dict) -> any {
 }
 
 @component
-def Workspaces() -> any {
+def Workspaces() -> ViewNode {
     h = get_wm();
     return Box(orientation="H", class="workspaces", children=[
         For(h.workspaces, key=lambda (w: dict) { w["key"]; }, row=ws_row),
@@ -107,7 +107,7 @@ def _bt_label(name: str) -> str {
 }
 
 @component
-def BluetoothWidget() -> any {
+def BluetoothWidget() -> ViewNode {
     b = get_bluetooth();
     return Label(
         class="bluetooth",
@@ -119,7 +119,7 @@ def BluetoothWidget() -> any {
 
 # BatteryWidget — icon + percent, hidden entirely when no battery is present.
 @component
-def BatteryWidget() -> any {
+def BatteryWidget() -> ViewNode {
     b = get_battery();
     return Label(
         class="battery",
@@ -137,7 +137,7 @@ def _vol_label(d: dict) -> str {
 }
 
 @component
-def VolumePanel() -> any {
+def VolumePanel() -> ViewNode {
     a = get_audio();
     return Box(orientation="V", class="volume-overlay", children=[
         Label(class="volume-overlay-title",
@@ -149,7 +149,7 @@ def VolumePanel() -> any {
 }
 
 @component
-def VolumeButton() -> any {
+def VolumeButton() -> ViewNode {
     a = get_audio();
     return Button(
         class="volume",
@@ -176,7 +176,7 @@ def MediaWidget() -> any {
 # NotificationsWidget — a bell + active count; hidden when nothing is pending.
 # (The daemon lives on the session bus; this reflects its active list.)
 @component
-def NotificationsWidget() -> any {
+def NotificationsWidget() -> ViewNode {
     d = get_notifications();
     return Label(
         class="notifications",
@@ -222,7 +222,7 @@ def tray_row(it: dict) -> any {
 }
 
 @component
-def TrayWidget() -> any {
+def TrayWidget() -> ViewNode {
     t = get_tray();
     return Box(orientation="H", class="tray", children=[
         For(t.items, key=_tray_key, row=tray_row),
@@ -234,7 +234,7 @@ def TrayWidget() -> any {
 # Spacer Boxes with hexpand push the three groups apart.
 # LauncherButton — the apps toggle; opens the launcher popup window.
 @component
-def LauncherButton() -> any {
+def LauncherButton() -> ViewNode {
     l = get_launcher();
     return Button(class="launcher-toggle", label="Apps",
         on_click=lambda { l.toggle(); });
@@ -264,7 +264,7 @@ def _dnd_class(modes: list) -> str {
 }
 
 @component
-def ModeButtons() -> any {
+def ModeButtons() -> ViewNode {
     modes = active_modes();
     return Box(orientation="H", class="mode-toggles", children=[
         Button(class=modes.map(_pres_class), label="Pres", tooltip="Presentation mode",

@@ -20,7 +20,7 @@ def count_kind(ops: list, kind: str) -> int {
 def int_for(initial: list) -> list {
     src = signal(initial);
     box = Box(children=[
-        For(src, key=lambda (x) { x; }, row=lambda (x) { Label(text=str(x)); }),
+        For(src, key=lambda (x: any) { x; }, row=lambda (x: any) { Label(text=str(x)); }),
     ]);
     return [box, src];
 }
@@ -154,7 +154,7 @@ test "For unmount detaches the source subscription" {
     m = install_mock();
     src = signal([1, 2, 3]);
     box = Box(children=[
-        For(src, key=lambda (x) { x; }, row=lambda (x) { Label(text=str(x)); }),
+        For(src, key=lambda (x: any) { x; }, row=lambda (x: any) { Label(text=str(x)); }),
     ]);
     # the For effect feeds from src (one Feeds edge src.node -> binding):
     assert len(feed_targets(src.node)) == 1;

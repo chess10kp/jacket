@@ -56,11 +56,11 @@ test "css subset parses colors, shorthand padding, later-rule-wins" {
     """);
     assert len(rules) == 3;
     win_sel = rules[0][0];
-    win_hover: bool = rules[0][1];
+    win_hover = rules[0][1] as bool;
     win_props = rules[0][2];
     clock_sel = rules[1][0];
     clk = rules[1][2];
-    hov_hover: bool = rules[2][1];
+    hov_hover = rules[2][1] as bool;
     hov_props = rules[2][2];
     assert win_sel == "window" and win_hover == False;
     assert clock_sel == ".clock";
@@ -580,12 +580,12 @@ test "Image tag sizes and paints from a texture" {
 test "wl_apply_css_file loads a stylesheet from disk" {
     path = "tests/_w6_tmp_theme.css";
     _write_file(path, ".tray-icon { padding: 3px; }");
-    assert len(_glob_styles["rules"]) >= 0;
+    assert len(_glob_styles["rules"] as list) >= 0;
     assert wl_apply_css_file(path) == True;
     # apply_css REPLACES the rule table with the new stylesheet's rules
-    assert len(_glob_styles["rules"]) >= 1;
+    assert len(_glob_styles["rules"] as list) >= 1;
     assert wl_apply_css_file("tests/_does_not_exist.css") == False;
-    assert len(_glob_styles["rules"]) >= 1;               # old rules survive a failed load
+    assert len(_glob_styles["rules"] as list) >= 1;               # old rules survive a failed load
     _remove_file(path);
 }
 
